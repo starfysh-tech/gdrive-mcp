@@ -24,7 +24,9 @@
       "Bash(gh repo rename:*)",
       "Bash(git merge:*)",
       "Bash(find:*)",
-      "Bash(gh auth:*)"
+      "Bash(gh auth:*)",
+      "WebFetch(domain:starfysh.net)",
+      "Bash(gh repo list:*)"
     ]
   }
 }

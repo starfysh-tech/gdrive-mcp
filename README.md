@@ -135,19 +135,19 @@ This server needs permission to talk to Google APIs on your behalf. You'll creat
 
 1.  **Clone the Repository:** Open your terminal/command prompt and run:
     ```bash
-    git clone https://github.com/a-bonus/google-docs-mcp.git mcp-googledocs-server
+    git clone https://github.com/starfysh-tech/gdrive-mcp.git gdrive-mcp
     ```
 2.  **Navigate into Directory:**
     ```bash
-    cd mcp-googledocs-server
+    cd gdrive-mcp
     ```
-3.  **Place Credentials:** Move or copy the `credentials.json` file you downloaded and renamed (from Step 1.6) directly into this `mcp-googledocs-server` folder.
+3.  **Place Credentials:** Move or copy the `credentials.json` file you downloaded and renamed (from Step 1.6) directly into this `gdrive-mcp` folder.
 
 ### Step 3: Install Dependencies
 
 Your server needs some helper libraries specified in the `package.json` file.
 
-1.  In your terminal (make sure you are inside the `mcp-googledocs-server` directory), run:
+1.  In your terminal (make sure you are inside the `gdrive-mcp` directory), run:
     ```bash
     npm install
     ```
@@ -189,7 +189,7 @@ Now you need to run the server once manually to grant it permission to access yo
     - "Authentication successful!"
     - "Token stored to .../token.json"
     - It will then finish starting and likely print "Awaiting MCP client connection via stdio..." or similar, and then exit (or you can press `Ctrl+C` to stop it).
-8.  ✅ **Check:** You should now see a new file named `token.json` in your `mcp-googledocs-server` folder.
+8.  ✅ **Check:** You should now see a new file named `token.json` in your `gdrive-mcp` folder.
 9.  ⚠️ **SECURITY WARNING:** This `token.json` file contains the key that allows the server to access your Google account _without_ asking again. Protect it like a password. **Do not commit it to GitHub.** The included `.gitignore` file should prevent this automatically.
 
 ### Alternative: Service Account with Domain-Wide Delegation (Enterprise)
@@ -226,9 +226,9 @@ For Google Workspace organizations that need to access documents across the doma
    ```json
    {
      "mcpServers": {
-       "google-docs-mcp": {
+       "gdrive-mcp": {
          "command": "node",
-         "args": ["/PATH/TO/mcp-googledocs-server/dist/server.js"],
+         "args": ["/PATH/TO/gdrive-mcp/dist/server.js"],
          "env": {
            "SERVICE_ACCOUNT_PATH": "/path/to/service-account-key.json",
            "GOOGLE_IMPERSONATE_USER": "user@yourdomain.com"
@@ -245,9 +245,9 @@ When `GOOGLE_IMPERSONATE_USER` is set, the server will impersonate that user whe
 If you want to use this server with Claude Desktop, you need to tell Claude how to run it.
 
 1.  **Find Your Absolute Path:** You need the full path to the server code.
-    - In your terminal, make sure you are still inside the `mcp-googledocs-server` directory.
+    - In your terminal, make sure you are still inside the `gdrive-mcp` directory.
     - Run the `pwd` command (on macOS/Linux) or `cd` (on Windows, just displays the path).
-    - Copy the full path (e.g., `/Users/yourname/projects/mcp-googledocs-server` or `C:\Users\yourname\projects\mcp-googledocs-server`).
+    - Copy the full path (e.g., `/Users/yourname/projects/gdrive-mcp` or `C:\Users\yourname\projects\gdrive-mcp`).
 2.  **Locate `mcp_config.json`:** Find Claude's configuration file:
     - **macOS:** `~/Library/Application Support/Claude/mcp_config.json` (You might need to use Finder's "Go" -> "Go to Folder..." menu and paste `~/Library/Application Support/Claude/`)
     - **Windows:** `%APPDATA%\Claude\mcp_config.json` (Paste `%APPDATA%\Claude` into File Explorer's address bar)
@@ -258,10 +258,10 @@ If you want to use this server with Claude Desktop, you need to tell Claude how 
     ```json
     {
       "mcpServers": {
-        "google-docs-mcp": {
+        "gdrive-mcp": {
           "command": "node",
           "args": [
-            "/PATH/TO/YOUR/CLONED/REPO/mcp-googledocs-server/dist/server.js"
+            "/PATH/TO/YOUR/CLONED/REPO/gdrive-mcp/dist/server.js"
           ],
           "env": {}
         }
@@ -283,9 +283,9 @@ If you want to use this server with Claude Desktop, you need to tell Claude how 
 
 Once configured, you should be able to use the tools in your chats with Claude:
 
-- "Use the `google-docs-mcp` server to read the document with ID `YOUR_GOOGLE_DOC_ID`."
+- "Use the `gdrive-mcp` server to read the document with ID `YOUR_GOOGLE_DOC_ID`."
 - "Can you get the content of Google Doc `YOUR_GOOGLE_DOC_ID`?"
-- "Append 'This was added by Claude!' to document `YOUR_GOOGLE_DOC_ID` using the `google-docs-mcp` tool."
+- "Append 'This was added by Claude!' to document `YOUR_GOOGLE_DOC_ID` using the `gdrive-mcp` tool."
 
 ### Working with Tabs
 
@@ -486,7 +486,7 @@ While this MCP server provides comprehensive Google Docs, Sheets, and Drive func
 - **Claude shows "Failed" or "Could not attach":**
   - Double-check the absolute path in `mcp_config.json`.
   - Ensure you ran `npm run build` successfully and the `dist` folder exists.
-  - Try running the command from `mcp_config.json` manually in your terminal: `node /PATH/TO/YOUR/CLONED/REPO/mcp-googledocs-server/dist/server.js`. Look for any errors printed.
+  - Try running the command from `mcp_config.json` manually in your terminal: `node /PATH/TO/YOUR/CLONED/REPO/gdrive-mcp/dist/server.js`. Look for any errors printed.
   - Check the Claude Desktop logs (see the official MCP debugging guide).
   - Make sure all `console.log` status messages in the server code were changed to `console.error`.
 - **Google Authorization Errors:**
@@ -501,6 +501,14 @@ While this MCP server provides comprehensive Google Docs, Sheets, and Drive func
 
 ---
 
+## About
+
+This project is maintained by [Starfysh](https://starfysh.net), providing fractional product and technology leadership for technical founders.
+
+Originally forked from [a-bonus/google-docs-mcp](https://github.com/a-bonus/google-docs-mcp).
+
+---
+
 ## License
 
-This project is licensed under the MIT License - see the `LICENSE` file for details. (Note: You should add a `LICENSE` file containing the MIT License text to your repository).
+This project is licensed under the MIT License - see the `LICENSE` file for details.
