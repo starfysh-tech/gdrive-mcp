@@ -2524,6 +2524,192 @@ execute: async (args, { log }) => {
 }
 });
 
+// === ENTERPRISE TOOLS ===
+
+// --- Permissions Management ---
+
+server.addTool({
+name: 'listFilePermissions',
+description: 'Lists all users, groups, and domains that have access to a file or folder. Useful for auditing file access and security reviews.',
+parameters: z.object({
+  fileId: z.string().describe('The ID of the file or folder to check permissions for.'),
+}),
+execute: async (args, { log }) => {
+  const drive = await getDriveClient();
+  log.info(`Listing permissions for file: ${args.fileId}`);
+
+  try {
+    const response = await drive.permissions.list({
+      fileId: args.fileId,
+      supportsAllDrives: true,
+      fields: 'permissions(id,type,role,emailAddress,displayName,domain,expirationTime,deleted)',
+    });
+
+    const permissions = response.data.permissions || [];
+
+    if (permissions.length === 0) {
+      return 'No permissions found for this file.';
+    }
+
+    let result = `Found ${permissions.length} permission(s):\n\n`;
+    permissions.forEach((perm, index) => {
+      result += `${index + 1}. **${perm.role?.toUpperCase()}**\n`;
+      result += `   Type: ${perm.type}\n`;
+      if (perm.emailAddress) result += `   Email: ${perm.emailAddress}\n`;
+      if (perm.displayName) result += `   Name: ${perm.displayName}\n`;
+      if (perm.domain) result += `   Domain: ${perm.domain}\n`;
+      if (perm.expirationTime) result += `   Expires: ${perm.expirationTime}\n`;
+      result += `   Permission ID: ${perm.id}\n\n`;
+    });
+
+    return result;
+  } catch (error: any) {
+    log.error(`Error listing permissions: ${error.message || error}`);
+    if (error.code === 404) throw new UserError(`File not found (ID: ${args.fileId}). Check the file ID.`);
+    if (error.code === 403) throw new UserError(`Permission denied. You may not have access to view permissions for this file.`);
+    throw new UserError(`Failed to list permissions: ${error.message || 'Unknown error'}`);
+  }
+}
+});
+
+server.addTool({
+name: 'shareFile',
+description: 'Share a file or folder with a user, group, or domain. Supports different permission levels: reader, commenter, writer, organizer (for shared drives).',
+parameters: z.object({
+  fileId: z.string().describe('The ID of the file or folder to share.'),
+  email: z.string().email().optional().describe('Email address of the user or group to share with.'),
+  domain: z.string().optional().describe('Domain to share with (e.g., "company.com"). Makes file accessible to anyone in that domain.'),
+  type: z.enum(['user', 'group', 'domain', 'anyone']).optional().default('user')
+    .describe('Type of permission: user, group, domain, or anyone (public).'),
+  role: z.enum(['reader', 'commenter', 'writer', 'fileOrganizer', 'organizer'])
+    .describe('Permission level. Note: commenter only works for Docs, Sheets, Slides. organizer/fileOrganizer only for shared drives.'),
+  sendNotification: z.boolean().optional().default(true)
+    .describe('Send an email notification to the recipient.'),
+  emailMessage: z.string().optional()
+    .describe('Custom message to include in the notification email.'),
+}),
+execute: async (args, { log }) => {
+  const drive = await getDriveClient();
+  log.info(`Sharing file ${args.fileId} with role: ${args.role}`);
+
+  // Validate inputs
+  if (args.type === 'user' || args.type === 'group') {
+    if (!args.email) {
+      throw new UserError(`Email is required when sharing with type '${args.type}'.`);
+    }
+  }
+  if (args.type === 'domain' && !args.domain) {
+    throw new UserError(`Domain is required when sharing with type 'domain'.`);
+  }
+
+  try {
+    const requestBody: any = {
+      role: args.role,
+      type: args.type,
+    };
+
+    if (args.email) requestBody.emailAddress = args.email;
+    if (args.domain) requestBody.domain = args.domain;
+
+    const response = await drive.permissions.create({
+      fileId: args.fileId,
+      supportsAllDrives: true,
+      sendNotificationEmail: args.sendNotification,
+      emailMessage: args.emailMessage,
+      requestBody,
+    });
+
+    const target = args.email || args.domain || 'anyone';
+    return `Successfully shared file with ${target} as ${args.role}. Permission ID: ${response.data.id}`;
+  } catch (error: any) {
+    log.error(`Error sharing file: ${error.message || error}`);
+    if (error.code === 404) throw new UserError(`File not found (ID: ${args.fileId}).`);
+    if (error.code === 403) throw new UserError(`Permission denied. You may not have permission to share this file, or your organization's sharing policies prevent this action.`);
+    if (error.code === 400) throw new UserError(`Invalid sharing request: ${error.message}. Check that the email is valid and the role is appropriate for the file type.`);
+    throw new UserError(`Failed to share file: ${error.message || 'Unknown error'}`);
+  }
+}
+});
+
+server.addTool({
+name: 'removePermission',
+description: 'Remove a user, group, or domain\'s access to a file or folder. Use listFilePermissions first to get the permission ID.',
+parameters: z.object({
+  fileId: z.string().describe('The ID of the file or folder.'),
+  permissionId: z.string().describe('The permission ID to remove (from listFilePermissions).'),
+}),
+execute: async (args, { log }) => {
+  const drive = await getDriveClient();
+  log.info(`Removing permission ${args.permissionId} from file ${args.fileId}`);
+
+  try {
+    await drive.permissions.delete({
+      fileId: args.fileId,
+      permissionId: args.permissionId,
+      supportsAllDrives: true,
+    });
+
+    return `Successfully removed permission ${args.permissionId} from the file.`;
+  } catch (error: any) {
+    log.error(`Error removing permission: ${error.message || error}`);
+    if (error.code === 404) throw new UserError(`File or permission not found. Check the file ID and permission ID.`);
+    if (error.code === 403) throw new UserError(`Permission denied. You may not have permission to modify sharing for this file.`);
+    throw new UserError(`Failed to remove permission: ${error.message || 'Unknown error'}`);
+  }
+}
+});
+
+// --- Revision History ---
+
+server.addTool({
+name: 'listRevisions',
+description: 'Lists the version history (revisions) of a file. Useful for compliance, auditing, and recovery. Note: For Google Docs/Sheets/Slides, older revisions may be merged and the list may be incomplete.',
+parameters: z.object({
+  fileId: z.string().describe('The ID of the file to get revisions for.'),
+  maxResults: z.number().int().min(1).max(100).optional().default(20)
+    .describe('Maximum number of revisions to return.'),
+}),
+execute: async (args, { log }) => {
+  const drive = await getDriveClient();
+  log.info(`Listing revisions for file: ${args.fileId}`);
+
+  try {
+    const response = await drive.revisions.list({
+      fileId: args.fileId,
+      pageSize: args.maxResults,
+      fields: 'revisions(id,modifiedTime,lastModifyingUser,size,keepForever)',
+    });
+
+    const revisions = response.data.revisions || [];
+
+    if (revisions.length === 0) {
+      return 'No revisions found for this file. Note: Some file types may not have revision history.';
+    }
+
+    let result = `Found ${revisions.length} revision(s):\n\n`;
+    revisions.forEach((rev, index) => {
+      const modifiedDate = rev.modifiedTime ? new Date(rev.modifiedTime).toLocaleString() : 'Unknown';
+      const modifiedBy = rev.lastModifyingUser?.displayName || rev.lastModifyingUser?.emailAddress || 'Unknown';
+      result += `${index + 1}. Revision ID: ${rev.id}\n`;
+      result += `   Modified: ${modifiedDate}\n`;
+      result += `   By: ${modifiedBy}\n`;
+      if (rev.size) result += `   Size: ${rev.size} bytes\n`;
+      if (rev.keepForever) result += `   Kept Forever: Yes\n`;
+      result += '\n';
+    });
+
+    result += '\nNote: For Google Docs/Sheets/Slides, revision history may be incomplete as older versions are automatically merged.';
+
+    return result;
+  } catch (error: any) {
+    log.error(`Error listing revisions: ${error.message || error}`);
+    if (error.code === 404) throw new UserError(`File not found (ID: ${args.fileId}).`);
+    if (error.code === 403) throw new UserError(`Permission denied. You may not have access to view revisions for this file.`);
+    throw new UserError(`Failed to list revisions: ${error.message || 'Unknown error'}`);
+  }
+}
+});
+
 // --- Server Startup ---
 async function startServer() {
 try {

@@ -67,6 +67,13 @@ This comprehensive server uses the Model Context Protocol (MCP) and the `fastmcp
 - **Search Across Drives:** All document and spreadsheet discovery tools now include results from shared drives
 - **Folder Navigation:** Browse shared drive folders using `listFolderContents` with the folder ID
 
+### 🆕 Enterprise Features
+
+- **List Permissions:** Audit file access with `listFilePermissions` - see all users, groups, and domains with access
+- **Share Files:** Share files programmatically with `shareFile` - supports users, groups, domains, and public access
+- **Remove Access:** Revoke permissions with `removePermission` - remove specific users or groups from files
+- **Version History:** View file revisions with `listRevisions` - track changes for compliance and auditing
+
 ### Integration
 
 - **Google Authentication:** Secure OAuth 2.0 authentication with full Drive, Docs, and Sheets access

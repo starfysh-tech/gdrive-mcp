@@ -578,6 +578,7 @@ export async function uploadImageToDrive(
     // Make the file publicly readable
     await drive.permissions.create({
         fileId: fileId,
+        supportsAllDrives: true,
         requestBody: {
             role: 'reader',
             type: 'anyone'
