@@ -37,7 +37,9 @@
       "Bash(npm pkg fix:*)",
       "Bash(npm version:*)",
       "Bash(node /Users/randallnoval/Code/gdrive-mcp/dist/server.js:*)",
-      "Bash(npm publish:*)"
+      "Bash(npm publish:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node:*)"
     ]
   }
 }

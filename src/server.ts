@@ -3510,4 +3510,15 @@ process.exit(1);
 }
 }
 
-startServer(); // Removed .catch here, let errors propagate if startup fails critically
+// Handle --uninstall flag
+if (process.argv.includes('--uninstall')) {
+  import('./auth.js').then(async ({ uninstall }) => {
+    await uninstall();
+    process.exit(0);
+  }).catch((err) => {
+    console.error('Uninstall failed:', err.message);
+    process.exit(1);
+  });
+} else {
+  startServer(); // Removed .catch here, let errors propagate if startup fails critically
+}

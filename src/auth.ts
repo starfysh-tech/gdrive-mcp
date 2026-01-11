@@ -9,7 +9,7 @@ import * as os from 'os';
 import { existsSync } from 'fs';
 
 // --- Calculate paths with fallback locations ---
-const CONFIG_DIR = path.join(os.homedir(), '.config', 'gdrive-mcp');
+export const CONFIG_DIR = path.join(os.homedir(), '.config', 'gdrive-mcp');
 
 function resolvePath(envVar: string, filename: string): string {
   // 1. Environment variable (explicit override)
@@ -197,3 +197,103 @@ export async function authorize(): Promise<OAuth2Client | JWT> {
   }
 }
 // --- END OF MODIFIED: The Main Exported Function ---
+
+// --- Uninstall Function ---
+export async function uninstall(): Promise<void> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+  try {
+    // Detect service account mode
+    if (process.env.SERVICE_ACCOUNT_PATH) {
+      console.log('ℹ Service account auth detected - no token files to remove.');
+      console.log(`  Service account key at: ${process.env.SERVICE_ACCOUNT_PATH}`);
+      return;
+    }
+
+    // Warn about custom paths via env vars
+    if (process.env.GDRIVE_MCP_TOKEN_PATH) {
+      console.log(`⚠ Custom token path set: ${process.env.GDRIVE_MCP_TOKEN_PATH}`);
+      console.log('  Remove manually if desired.\n');
+    }
+    if (process.env.GDRIVE_MCP_CREDENTIALS_PATH) {
+      console.log(`⚠ Custom credentials path set: ${process.env.GDRIVE_MCP_CREDENTIALS_PATH}`);
+      console.log('  Remove manually if desired.\n');
+    }
+
+    // Check ALL locations (not using resolvePath - it returns fallback even if missing)
+    const locations = [
+      { dir: CONFIG_DIR, label: '~/.config/gdrive-mcp' },
+      { dir: process.cwd(), label: 'current directory' }
+    ];
+
+    let tokensRemoved = 0;
+    let credentialsToRemove: string[] = [];
+
+    // Remove token.json from all locations (no prompt - always safe)
+    for (const loc of locations) {
+      const tokenPath = path.join(loc.dir, 'token.json');
+      if (existsSync(tokenPath)) {
+        try {
+          await fs.unlink(tokenPath);
+          console.log(`✓ Removed token.json from ${loc.label}`);
+          tokensRemoved++;
+        } catch (error: any) {
+          console.log(`⚠ Failed to remove token.json from ${loc.label}: ${error.message}`);
+        }
+      }
+
+      const credPath = path.join(loc.dir, 'credentials.json');
+      if (existsSync(credPath)) {
+        credentialsToRemove.push(credPath);
+      }
+    }
+
+    if (tokensRemoved === 0) {
+      console.log('ℹ No token.json found (already clean)');
+    }
+
+    // Prompt for credentials.json removal (only if interactive)
+    if (credentialsToRemove.length > 0) {
+      if (process.stdin.isTTY) {
+        const answer = await rl.question(
+          '\n? Remove credentials.json? You\'ll need to re-download from Google Console. [y/N] '
+        );
+        if (answer.toLowerCase() === 'y') {
+          for (const credPath of credentialsToRemove) {
+            try {
+              await fs.unlink(credPath);
+              console.log(`✓ Removed ${credPath}`);
+            } catch (error: any) {
+              console.log(`⚠ Failed to remove ${credPath}: ${error.message}`);
+            }
+          }
+        } else {
+          console.log('  Keeping credentials.json');
+        }
+      } else {
+        console.log(`\nℹ Found credentials.json in ${credentialsToRemove.length} location(s) - kept (run interactively to remove)`);
+      }
+    }
+
+    // Print mcp_config.json cleanup instructions with platform detection
+    const configPath = process.platform === 'darwin'
+      ? '~/Library/Application Support/Claude/claude_desktop_config.json'
+      : process.platform === 'win32'
+      ? '%APPDATA%\\Claude\\claude_desktop_config.json'
+      : '~/.config/Claude/claude_desktop_config.json';
+
+    console.log(`
+┌─────────────────────────────────────────────────────────────────┐
+│  Uninstall Complete                                             │
+├─────────────────────────────────────────────────────────────────┤
+│  To remove from Claude Desktop:                                 │
+│                                                                 │
+│  1. Open: ${configPath.padEnd(48)} │
+│  2. Remove the "gdrive-mcp" entry from "mcpServers"             │
+│  3. Restart Claude Desktop                                      │
+└─────────────────────────────────────────────────────────────────┘
+`);
+  } finally {
+    rl.close();
+  }
+}
