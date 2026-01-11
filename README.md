@@ -142,7 +142,11 @@ This server needs permission to talk to Google APIs on your behalf. You'll creat
     - **Scopes:** Click "**ADD OR REMOVE SCOPES**". Search for and add the following scopes:
       - `https://www.googleapis.com/auth/documents` (Allows reading/writing docs)
       - `https://www.googleapis.com/auth/spreadsheets` (Allows reading/writing spreadsheets)
-      - `https://www.googleapis.com/auth/drive.file` (Allows access to specific files opened/created by the app)
+      - `https://www.googleapis.com/auth/drive` (Allows full Drive access - required for file management)
+      - `https://www.googleapis.com/auth/presentations` (Allows reading/writing slides)
+      - `https://www.googleapis.com/auth/forms.body.readonly` (Allows reading form structure)
+      - `https://www.googleapis.com/auth/forms.responses.readonly` (Allows reading form responses)
+      - `https://www.googleapis.com/auth/script.projects` (Allows managing Apps Script projects)
       - Click "**UPDATE**".
     - Click "**SAVE AND CONTINUE**".
     - **Test Users:** Click "**ADD USERS**". Enter the same Google email address you are logged in with. Click "**ADD**". This allows _you_ to use the app while it's in "testing" mode.
@@ -275,12 +279,12 @@ If you want to use this server with Claude Desktop, you need to tell Claude how 
     - In your terminal, make sure you are still inside the `gdrive-mcp` directory.
     - Run the `pwd` command (on macOS/Linux) or `cd` (on Windows, just displays the path).
     - Copy the full path (e.g., `/Users/yourname/projects/gdrive-mcp` or `C:\Users\yourname\projects\gdrive-mcp`).
-2.  **Locate `mcp_config.json`:** Find Claude's configuration file:
-    - **macOS:** `~/Library/Application Support/Claude/mcp_config.json` (You might need to use Finder's "Go" -> "Go to Folder..." menu and paste `~/Library/Application Support/Claude/`)
-    - **Windows:** `%APPDATA%\Claude\mcp_config.json` (Paste `%APPDATA%\Claude` into File Explorer's address bar)
-    - **Linux:** `~/.config/Claude/mcp_config.json`
-    - _If the `Claude` folder or `mcp_config.json` file doesn't exist, create them._
-3.  **Edit `mcp_config.json`:** Open the file in a text editor. Add or modify the `mcpServers` section like this, **replacing `/PATH/TO/YOUR/CLONED/REPO` with the actual absolute path you copied in Step 6.1**:
+2.  **Locate `claude_desktop_config.json`:** Find Claude's configuration file:
+    - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json` (You might need to use Finder's "Go" -> "Go to Folder..." menu and paste `~/Library/Application Support/Claude/`)
+    - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json` (Paste `%APPDATA%\Claude` into File Explorer's address bar)
+    - **Linux:** `~/.config/Claude/claude_desktop_config.json`
+    - _If the `Claude` folder or `claude_desktop_config.json` file doesn't exist, create them._
+3.  **Edit `claude_desktop_config.json`:** Open the file in a text editor. Add or modify the `mcpServers` section like this, **replacing `/PATH/TO/YOUR/CLONED/REPO` with the actual absolute path you copied in Step 6.1**:
 
     ```json
     {
@@ -555,10 +559,21 @@ For the complete list of OAuth 2.0 scopes, see: [OAuth 2.0 Scopes for Google API
   - Check the Claude Desktop logs (see the official MCP debugging guide).
   - Make sure all `console.log` status messages in the server code were changed to `console.error`.
 - **Google Authorization Errors:**
-  - Ensure you enabled the correct APIs (Docs, Sheets, Drive).
+  - Ensure you enabled the correct APIs (Docs, Sheets, Drive, Slides, Forms, Apps Script).
   - Make sure you added your email as a Test User on the OAuth Consent Screen.
-  - Verify the `credentials.json` file is correctly placed in the project root.
-  - **If you're upgrading from an older version:** You may need to delete your existing `token.json` file and re-authenticate to grant new scopes (Sheets, Slides, Forms, Apps Script).
+  - Verify the `credentials.json` file is correctly placed in the project root or `~/.config/gdrive-mcp/`.
+  - **If you're upgrading from an older version:** Delete your existing `token.json` file and re-authenticate to grant new scopes (Sheets, Slides, Forms, Apps Script).
+- **"Unverified app" Warning During OAuth:**
+  - **This is expected** when your app is in "Testing" mode.
+  - Click "Advanced" → "Go to [Your App Name] (unsafe)" → "Continue"
+  - This is safe because you're authorizing your own application.
+- **"This site can't be reached" Error:**
+  - **This is normal** during OAuth flow! Your browser tries to redirect to `http://localhost` which isn't running.
+  - Look at the browser address bar for the URL like `http://localhost/?code=4/0Axxx...`
+  - Copy the code between `code=` and `&scope` and paste it into the terminal.
+- **Permission Denied Errors:**
+  - Verify you're accessing documents that you own or have been shared with you.
+  - Check document sharing settings in Google Drive.
 - **Tab-related Errors:**
   - If you get "Tab with ID not found", use `listDocumentTabs` to see all available tab IDs
   - Ensure you're using the correct tab ID format (typically a short alphanumeric string)

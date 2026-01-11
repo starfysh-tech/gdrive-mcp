@@ -7,6 +7,8 @@ import * as path from 'path';
 import * as readline from 'readline/promises';
 import * as os from 'os';
 import { existsSync } from 'fs';
+import * as http from 'http';
+import open from 'open';
 
 // --- Calculate paths with fallback locations ---
 export const CONFIG_DIR = path.join(os.homedir(), '.config', 'gdrive-mcp');
@@ -138,17 +140,80 @@ async function saveCredentials(client: OAuth2Client): Promise<void> {
   await fs.writeFile(TOKEN_PATH, payload);
 }
 
-async function authenticate(): Promise<OAuth2Client> {
-  const { client_secret, client_id, redirect_uris, client_type } = await loadClientSecrets();
-  const redirectUri = client_type === 'web' ? redirect_uris[0] : 'urn:ietf:wg:oauth:2.0:oob';
-  const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirectUri);
+// --- Automatic OAuth Code Capture via Localhost ---
+async function captureOAuthCodeAutomatically(authorizeUrl: string, redirectUri: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    // Parse port from redirect URI
+    const url = new URL(redirectUri);
+    const port = parseInt(url.port) || 3000;
+    let handled = false; // Prevent race condition from multiple callbacks
 
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    // Helper to send HTML response and cleanup
+    const sendResponse = (res: http.ServerResponse, status: number, title: string, message: string) => {
+      res.writeHead(status, { 'Content-Type': 'text/html' });
+      res.end(`<html><body><h1>${title}</h1>${message ? `<p>${message}</p>` : ''}</body></html>`);
+    };
 
-  const authorizeUrl = oAuth2Client.generateAuthUrl({
-    access_type: 'offline',
-    scope: SCOPES.join(' '),
+    const server = http.createServer(async (req, res) => {
+      if (req.url?.startsWith('/?')) {
+        // Prevent processing duplicate requests
+        if (handled) {
+          sendResponse(res, 200, 'Already Processed', 'This authorization was already completed.');
+          return;
+        }
+        handled = true;
+
+        const queryParams = new URL(req.url, `http://localhost:${port}`).searchParams;
+        const code = queryParams.get('code');
+        const error = queryParams.get('error');
+
+        if (error) {
+          sendResponse(res, 400, 'Authorization Failed', `Error: ${error}`);
+          clearTimeout(timeoutHandle);
+          server.close();
+          reject(new Error(`OAuth error: ${error}`));
+        } else if (code) {
+          sendResponse(res, 200, '✓ Authorization Successful!', 'You can close this window and return to the terminal.');
+          clearTimeout(timeoutHandle);
+          server.close();
+          resolve(code);
+        } else {
+          sendResponse(res, 400, 'No Code Received', '');
+          clearTimeout(timeoutHandle);
+          server.close();
+          reject(new Error('No authorization code received'));
+        }
+      } else {
+        // Handle non-OAuth paths (favicon, etc.)
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Not found');
+      }
+    });
+
+    server.on('error', (err) => {
+      clearTimeout(timeoutHandle);
+      reject(err);
+    });
+
+    server.listen(port, () => {
+      console.error(`\n→ Opening browser for authorization...\n`);
+      open(authorizeUrl).catch(() => {
+        // If browser fails to open, user can still manually visit URL
+        console.error(`⚠ Could not open browser automatically. Please visit:\n${authorizeUrl}\n`);
+      });
+    });
+
+    // Timeout after 5 minutes
+    const timeoutHandle = setTimeout(() => {
+      server.close();
+      reject(new Error('Authorization timeout - no response after 5 minutes'));
+    }, 5 * 60 * 1000);
   });
+}
+
+// --- Manual OAuth Code Capture (Fallback) ---
+async function captureOAuthCodeManually(authorizeUrl: string): Promise<string> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
   console.error(`
 ┌─────────────────────────────────────────────────────────────────┐
@@ -163,8 +228,39 @@ async function authenticate(): Promise<OAuth2Client> {
 │  4. Paste it below                                              │
 └─────────────────────────────────────────────────────────────────┘
 `);
+
   const code = await rl.question('Paste code here: ');
   rl.close();
+  return code;
+}
+
+async function authenticate(): Promise<OAuth2Client> {
+  const { client_secret, client_id, redirect_uris } = await loadClientSecrets();
+  // Use localhost redirect instead of deprecated OOB
+  const redirectUri = redirect_uris[0] || 'http://localhost:3000';
+  const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirectUri);
+
+  const authorizeUrl = oAuth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: SCOPES.join(' '),
+  });
+
+  let code: string;
+
+  // Try automatic capture first (only if TTY available)
+  if (process.stdin.isTTY) {
+    try {
+      code = await captureOAuthCodeAutomatically(authorizeUrl, redirectUri);
+    } catch (autoError) {
+      // Fall back to manual if automatic fails
+      console.error(`\n⚠ Automatic authorization failed: ${autoError instanceof Error ? autoError.message : 'Unknown error'}`);
+      console.error('→ Falling back to manual code entry...\n');
+      code = await captureOAuthCodeManually(authorizeUrl);
+    }
+  } else {
+    // Non-interactive environment - use manual only
+    code = await captureOAuthCodeManually(authorizeUrl);
+  }
 
   try {
     const { tokens } = await oAuth2Client.getToken(code);

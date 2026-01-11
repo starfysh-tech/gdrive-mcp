@@ -44,6 +44,7 @@
     "fastmcp": "^3.24.0",
     "google-auth-library": "^9.15.1",
     "googleapis": "^148.0.0",
+    "open": "^11.0.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {

@@ -3510,13 +3510,20 @@ process.exit(1);
 }
 }
 
-// Handle --uninstall flag
+// Handle CLI flags
 if (process.argv.includes('--uninstall')) {
   import('./auth.js').then(async ({ uninstall }) => {
     await uninstall();
     process.exit(0);
   }).catch((err) => {
     console.error('Uninstall failed:', err.message);
+    process.exit(1);
+  });
+} else if (process.argv.includes('--check')) {
+  import('./check.js').then(async ({ runHealthCheck }) => {
+    await runHealthCheck();
+  }).catch((err) => {
+    console.error('Health check failed:', err.message);
     process.exit(1);
   });
 } else {
