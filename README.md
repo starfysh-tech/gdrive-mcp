@@ -61,6 +61,12 @@ This comprehensive server uses the Model Context Protocol (MCP) and the `fastmcp
 - **File Operations:** Move (`moveFile`), copy (`copyFile`), rename (`renameFile`), delete (`deleteFile`)
 - **Document Creation:** Create new docs (`createDocument`) or from templates (`createFromTemplate`)
 
+### 🆕 Shared Drive Support
+
+- **List Shared Drives:** Discover accessible shared drives with `listSharedDrives`
+- **Search Across Drives:** All document and spreadsheet discovery tools now include results from shared drives
+- **Folder Navigation:** Browse shared drive folders using `listFolderContents` with the folder ID
+
 ### Integration
 
 - **Google Authentication:** Secure OAuth 2.0 authentication with full Drive, Docs, and Sheets access

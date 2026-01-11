@@ -1454,6 +1454,8 @@ try {
     pageSize: args.maxResults,
     orderBy: args.orderBy === 'name' ? 'name' : args.orderBy,
     fields: 'files(id,name,modifiedTime,createdTime,size,webViewLink,owners(displayName,emailAddress))',
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
 
   const files = response.data.files || [];
@@ -1517,6 +1519,8 @@ try {
     pageSize: args.maxResults,
     orderBy: 'modifiedTime desc',
     fields: 'files(id,name,modifiedTime,createdTime,webViewLink,owners(displayName),parents)',
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
 
   const files = response.data.files || [];
@@ -1568,6 +1572,8 @@ try {
     pageSize: args.maxResults,
     orderBy: 'modifiedTime desc',
     fields: 'files(id,name,modifiedTime,createdTime,webViewLink,owners(displayName),lastModifyingUser(displayName))',
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
 
   const files = response.data.files || [];
@@ -1730,6 +1736,8 @@ try {
     pageSize: args.maxResults,
     orderBy: 'folder,name',
     fields: 'files(id,name,mimeType,size,modifiedTime,webViewLink,owners(displayName))',
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
 
   const items = response.data.files || [];
@@ -1777,6 +1785,53 @@ try {
   if (error.code === 403) throw new UserError("Permission denied. Make sure you have access to this folder.");
   throw new UserError(`Failed to list folder contents: ${error.message || 'Unknown error'}`);
 }
+}
+});
+
+server.addTool({
+name: 'listSharedDrives',
+description: 'Lists all shared drives (team drives) the authenticated user has access to.',
+parameters: z.object({
+  maxResults: z.number().int().min(1).max(100).optional().default(20)
+    .describe('Maximum number of shared drives to return.'),
+  query: z.string().optional()
+    .describe('Optional search query to filter shared drives by name.'),
+}),
+execute: async (args, { log }) => {
+  const drive = await getDriveClient();
+  log.info(`Listing shared drives, max: ${args.maxResults}`);
+
+  try {
+    const response = await drive.drives.list({
+      pageSize: args.maxResults,
+      q: args.query ? `name contains '${args.query}'` : undefined,
+      fields: 'drives(id,name,createdTime)',
+    });
+
+    const drives = response.data.drives || [];
+
+    if (drives.length === 0) {
+      return args.query
+        ? `No shared drives found matching "${args.query}".`
+        : 'No shared drives found. You may not have access to any shared drives.';
+    }
+
+    let result = `Found ${drives.length} shared drive(s):\n\n`;
+    drives.forEach((d, index) => {
+      result += `${index + 1}. ${d.name}\n`;
+      result += `   ID: ${d.id}\n`;
+      if (d.createdTime) {
+        result += `   Created: ${new Date(d.createdTime).toLocaleDateString()}\n`;
+      }
+      result += '\n';
+    });
+
+    return result;
+  } catch (error: any) {
+    log.error(`Error listing shared drives: ${error.message || error}`);
+    if (error.code === 403) throw new UserError("Permission denied. You may not have access to list shared drives.");
+    throw new UserError(`Failed to list shared drives: ${error.message || 'Unknown error'}`);
+  }
 }
 });
 
@@ -2439,6 +2494,8 @@ execute: async (args, { log }) => {
       pageSize: args.maxResults,
       orderBy: args.orderBy === 'name' ? 'name' : args.orderBy,
       fields: 'files(id,name,modifiedTime,createdTime,size,webViewLink,owners(displayName,emailAddress))',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
     });
 
     const files = response.data.files || [];
