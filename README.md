@@ -1,312 +1,125 @@
-# Ultimate Google Workspace MCP Server
+# gdrive-mcp
 
-![Demo Animation](assets/google.docs.mcp.1.gif)
+Connect Claude to your Google Workspace: Docs, Sheets, Drive, Slides, Forms, and Apps Script.
 
-Connect Claude Desktop (or other MCP clients) to Google Docs, Sheets, Drive, Slides, Forms, and Apps Script!
+Built with FastMCP using the Model Context Protocol. Works with Claude Desktop and other MCP clients.
 
-> 🔥 **Check out [15 powerful tasks](SAMPLE_TASKS.md) you can accomplish with this server!**
-> 🎨 **NEW:** Google Slides support for presentations
-> 📋 **NEW:** Google Forms read-only access
-> 📜 **NEW:** Google Apps Script project management and execution
+## Features
 
-This comprehensive server uses the Model Context Protocol (MCP) and the `fastmcp` library to provide tools for reading, writing, formatting, structuring Google Documents and Spreadsheets, and managing your entire Google Drive. It acts as a powerful bridge, allowing AI assistants like Claude to interact with your documents, spreadsheets, and files programmatically with advanced capabilities.
+**Documents** — Read, write, and format content. Insert tables, images, page breaks. Manage comments and replies. Support for multi-tab documents.
 
-**Features:**
+**Spreadsheets** — Read and write ranges using A1 notation. Append rows, clear cells, create sheets. Get metadata and manage tabs.
 
-### Document Access & Editing
+**Drive** — Search and list files. Create, move, copy, rename, and delete files. Manage folders and permissions. Access shared drives.
 
-- **Read Documents:** Read content with `readGoogleDoc` (plain text, JSON structure, or markdown)
-- **Append to Documents:** Add text to documents with `appendToGoogleDoc`
-- **Insert Text:** Place text at specific positions with `insertText`
-- **Delete Content:** Remove content from a document with `deleteRange`
-- **Tab Support:** Work with multi-tab documents using `listDocumentTabs` and optional `tabId` parameter in read/write operations
+**Slides** — Read presentation metadata. Create presentations and manage slides.
 
-### Formatting & Styling
+**Forms** — Read form structure and responses (read-only API limitation).
 
-- **Text Formatting:** Apply rich styling with `applyTextStyle` (bold, italic, colors, etc.)
-- **Paragraph Formatting:** Control paragraph layout with `applyParagraphStyle` (alignment, spacing, etc.)
-- **Find & Format:** Format by text content using `formatMatchingText` (legacy support)
+**Apps Script** — Manage projects, read and update code, list versions and deployments. Execute functions via API.
 
-### Document Structure
-
-- **Tables:** Create tables with `insertTable`
-- **Page Breaks:** Insert page breaks with `insertPageBreak`
-- **Images:** Insert images from URLs with `insertImageFromUrl`, or upload local images with `insertLocalImage`
-- **Experimental Features:** Tools like `fixListFormatting` for automatic list detection
-
-### 🆕 Comment Management
-
-- **List Comments:** View all comments in a document with `listComments` (shows author, date, and quoted text)
-- **Get Comment Details:** Get specific comment with replies using `getComment`
-- **Add Comments:** Create new comments anchored to text with `addComment`
-- **Reply to Comments:** Add replies to existing comments with `replyToComment`
-- **Resolve Comments:** Mark comments as resolved with `resolveComment`
-- **Delete Comments:** Remove comments from documents with `deleteComment`
-
-### 🆕 Google Sheets Support
-
-- **Read Spreadsheets:** Read data from ranges with `readSpreadsheet` (supports A1 notation like "A1:B10" or "Sheet1!A1:B10")
-- **Write Data:** Write data to ranges with `writeSpreadsheet` (overwrites existing data)
-- **Append Rows:** Add new rows to sheets with `appendSpreadsheetRows`
-- **Clear Ranges:** Clear cell values with `clearSpreadsheetRange`
-- **Spreadsheet Info:** Get detailed metadata and sheet list with `getSpreadsheetInfo`
-- **Create Spreadsheets:** Create new spreadsheets with `createSpreadsheet` (optionally with initial data)
-- **Add Sheets:** Add new sheets/tabs to spreadsheets with `addSpreadsheetSheet`
-- **List Spreadsheets:** Find and list spreadsheets with `listGoogleSheets`
-
-### 🆕 Google Drive File Management
-
-- **Document Discovery:** Find and list documents with `listGoogleDocs`, `searchGoogleDocs`, `getRecentGoogleDocs`
-- **Document Information:** Get detailed metadata with `getDocumentInfo`
-- **Folder Management:** Create folders (`createFolder`), list contents (`listFolderContents`), get info (`getFolderInfo`)
-- **File Operations:** Move (`moveFile`), copy (`copyFile`), rename (`renameFile`), delete (`deleteFile`)
-- **Document Creation:** Create new docs (`createDocument`) or from templates (`createFromTemplate`)
-
-### 🆕 Shared Drive Support
-
-- **List Shared Drives:** Discover accessible shared drives with `listSharedDrives`
-- **Search Across Drives:** All document and spreadsheet discovery tools now include results from shared drives
-- **Folder Navigation:** Browse shared drive folders using `listFolderContents` with the folder ID
-
-### 🆕 Enterprise Features
-
-- **List Permissions:** Audit file access with `listFilePermissions` - see all users, groups, and domains with access
-- **Share Files:** Share files programmatically with `shareFile` - supports users, groups, domains, and public access
-- **Remove Access:** Revoke permissions with `removePermission` - remove specific users or groups from files
-- **Version History:** View file revisions with `listRevisions` - track changes for compliance and auditing
-
-### 🆕 Google Slides Support
-
-- **Read Presentations:** Get presentation metadata with `getPresentation` and list all slides with `listSlides`
-- **Create Presentations:** Create new presentations with `createPresentation`
-- **Manage Slides:** Get slide details with `getSlide`, add slides with `createSlide`, remove with `deleteSlide`
-
-### 🆕 Google Forms Support (Read-Only)
-
-- **Read Forms:** Get form structure and questions with `getForm` and `listFormQuestions`
-- **Read Responses:** Get all form responses with `listFormResponses` or specific ones with `getFormResponse`
-- ⚠️ **Note:** The Forms API only supports reading - form creation/editing must be done via the web interface
-
-### 🆕 Google Apps Script Support
-
-- **Manage Projects:** Get project details with `getScriptProject`, create with `createScriptProject`
-- **Manage Code:** Read scripts with `getScriptContent`, update with `updateScriptContent`
-- **Manage Versions:** List script versions with `listScriptVersions`, list deployments with `listScriptDeployments`
-- **Execute Scripts:** Run functions with `runScript` (requires API executable deployment)
-
-### Integration
-
-- **Google Authentication:** Secure OAuth 2.0 authentication with full Drive, Docs, and Sheets access
-- **MCP Compliant:** Designed for use with Claude and other MCP clients
-- **VS Code Integration:** [Setup guide](vscode.md) for VS Code MCP extension
+**Authentication** — Secure OAuth 2.0 with support for service accounts and domain-wide delegation.
 
 ---
 
 ## Prerequisites
 
-Before you start, make sure you have:
-
-1.  **Node.js and npm:** A recent version of Node.js (which includes npm) installed on your computer. You can download it from [nodejs.org](https://nodejs.org/). (Version 18 or higher recommended).
-2.  **Git:** Required for cloning this repository. ([Download Git](https://git-scm.com/downloads)).
-3.  **A Google Account:** The account that owns or has access to the Google Docs you want to interact with.
-4.  **Command Line Familiarity:** Basic comfort using a terminal or command prompt (like Terminal on macOS/Linux, or Command Prompt/PowerShell on Windows).
-5.  **Claude Desktop (Optional):** If your goal is to connect this server to Claude, you'll need the Claude Desktop application installed.
+- Node.js 18+ and npm ([nodejs.org](https://nodejs.org/))
+- Git ([git-scm.com/downloads](https://git-scm.com/downloads))
+- Google Account with access to the documents you want to manage
+- Claude Desktop (optional, if connecting to Claude)
 
 ---
 
-## Setup Instructions
+## Setup
 
-Follow these steps carefully to get your own instance of the server running.
+### Step 1: Google Cloud Credentials
 
-### Step 1: Google Cloud Project & Credentials (The Important Bit!)
+Create OAuth credentials to authenticate with Google APIs.
 
-This server needs permission to talk to Google APIs on your behalf. You'll create special "keys" (credentials) that only your server will use.
+1. **Open [Google Cloud Console](https://console.cloud.google.com/)** and create or select a project
 
-1.  **Go to Google Cloud Console:** Open your web browser and go to the [Google Cloud Console](https://console.cloud.google.com/). You might need to log in with your Google Account.
-2.  **Create or Select a Project:**
-    - If you don't have a project, click the project dropdown near the top and select "NEW PROJECT". Give it a name (e.g., "My MCP Docs Server") and click "CREATE".
-    - If you have existing projects, you can select one or create a new one.
-3.  **Enable APIs:** You need to turn on the specific Google services this server uses.
-    - In the search bar at the top, type "APIs & Services" and select "Library".
-    - Search for "**Google Docs API**" and click on it. Then click the "**ENABLE**" button.
-    - Search for "**Google Sheets API**" and click on it. Then click the "**ENABLE**" button.
-    - Search for "**Google Drive API**" and click on it. Then click the "**ENABLE**" button (this is often needed for finding files or permissions).
-4.  **Configure OAuth Consent Screen:** This screen tells users (usually just you) what your app wants permission for.
-    - On the left menu, click "APIs & Services" -> "**OAuth consent screen**".
-    - Choose User Type: Select "**External**" and click "CREATE".
-    - Fill in App Information:
-      - **App name:** Give it a name users will see (e.g., "Claude Docs MCP Access").
-      - **User support email:** Select your email address.
-      - **Developer contact information:** Enter your email address.
-    - Click "**SAVE AND CONTINUE**".
-    - **Scopes:** Click "**ADD OR REMOVE SCOPES**". Search for and add the following scopes:
-      - `https://www.googleapis.com/auth/documents` (Allows reading/writing docs)
-      - `https://www.googleapis.com/auth/spreadsheets` (Allows reading/writing spreadsheets)
-      - `https://www.googleapis.com/auth/drive` (Allows full Drive access - required for file management)
-      - `https://www.googleapis.com/auth/presentations` (Allows reading/writing slides)
-      - `https://www.googleapis.com/auth/forms.body.readonly` (Allows reading form structure)
-      - `https://www.googleapis.com/auth/forms.responses.readonly` (Allows reading form responses)
-      - `https://www.googleapis.com/auth/script.projects` (Allows managing Apps Script projects)
-      - Click "**UPDATE**".
-    - Click "**SAVE AND CONTINUE**".
-    - **Test Users:** Click "**ADD USERS**". Enter the same Google email address you are logged in with. Click "**ADD**". This allows _you_ to use the app while it's in "testing" mode.
-    - Click "**SAVE AND CONTINUE**". Review the summary and click "**BACK TO DASHBOARD**".
-5.  **Create Credentials (The Keys!):**
-    - On the left menu, click "APIs & Services" -> "**Credentials**".
-    - Click "**+ CREATE CREDENTIALS**" at the top and choose "**OAuth client ID**".
-    - **Application type:** Select "**Desktop app**" from the dropdown.
-    - **Name:** Give it a name (e.g., "MCP Docs Desktop Client").
-    - Click "**CREATE**".
-6.  **⬇️ DOWNLOAD THE CREDENTIALS FILE:** A box will pop up showing your Client ID. Click the "**DOWNLOAD JSON**" button.
-    - Save this file. It will likely be named something like `client_secret_....json`.
-    - **IMPORTANT:** Rename the downloaded file to exactly `credentials.json`.
-7.  ⚠️ **SECURITY WARNING:** Treat this `credentials.json` file like a password! Do not share it publicly, and **never commit it to GitHub.** Anyone with this file could potentially pretend to be _your application_ (though they'd still need user consent to access data).
+2. **Enable APIs** (APIs & Services → Library):
+   - Google Docs API
+   - Google Sheets API
+   - Google Drive API
+   - Google Slides API
+   - Google Forms API
+   - Apps Script API
 
-### Step 2: Get the Server Code
+3. **Configure OAuth Consent Screen** (APIs & Services → OAuth consent screen):
+   - User Type: External
+   - App name: Choose any name (e.g., "gdrive-mcp")
+   - User support email + Developer contact: Your email
+   - Scopes: Add all 7 scopes listed above (`auth/documents`, `auth/spreadsheets`, `auth/drive`, `auth/presentations`, `auth/forms.body.readonly`, `auth/forms.responses.readonly`, `auth/script.projects`)
+   - Test Users: Add your Google email
 
-1.  **Clone the Repository:** Open your terminal/command prompt and run:
-    ```bash
-    git clone https://github.com/starfysh-tech/gdrive-mcp.git gdrive-mcp
-    ```
-2.  **Navigate into Directory:**
-    ```bash
-    cd gdrive-mcp
-    ```
-3.  **Place Credentials:** Move or copy the `credentials.json` file you downloaded and renamed (from Step 1.6) directly into this `gdrive-mcp` folder.
+4. **Create OAuth Credentials** (APIs & Services → Credentials):
+   - Create Credentials → OAuth client ID
+   - Application type: Desktop app
+   - Download the JSON file and rename it to `credentials.json`
 
-### Step 3: Install Dependencies
+**Security Note:** Keep `credentials.json` and `token.json` private. Never commit them to version control (`.gitignore` includes them).
 
-Your server needs some helper libraries specified in the `package.json` file.
+### Step 2: Install and Build
 
-1.  In your terminal (make sure you are inside the `gdrive-mcp` directory), run:
-    ```bash
-    npm install
-    ```
-    This will download and install all the necessary packages into a `node_modules` folder.
+```bash
+git clone https://github.com/starfysh-tech/gdrive-mcp.git
+cd gdrive-mcp
+# Place credentials.json in this directory
+npm install
+npm run build
+```
 
-### Step 4: Build the Server Code
+### Step 3: Authenticate
 
-The server is written in TypeScript (`.ts`), but we need to compile it into JavaScript (`.js`) that Node.js can run directly.
+Run the server once to authorize Google API access:
 
-1.  In your terminal, run:
-    ```bash
-    npm run build
-    ```
-    This uses the TypeScript compiler (`tsc`) to create a `dist` folder containing the compiled JavaScript files.
+```bash
+node ./dist/server.js
+```
 
-### Step 5: First Run & Google Authorization (One Time Only)
+The server will open your browser automatically for OAuth authorization. Sign in with the Google account you added as a test user. After authorizing, the server captures the token automatically and saves it to `token.json`.
 
-Now you need to run the server once manually to grant it permission to access your Google account data. This will create a `token.json` file that saves your permission grant.
+<details>
+<summary><strong>Enterprise: Service Account with Domain-Wide Delegation</strong></summary>
 
-1.  In your terminal, run the _compiled_ server using `node`:
-    ```bash
-    node ./dist/server.js
-    ```
-2.  **Watch the Terminal:** The script will print:
-    - Status messages (like "Attempting to authorize...").
-    - An "Authorize this app by visiting this url:" message followed by a long `https://accounts.google.com/...` URL.
-3.  **Authorize in Browser:**
-    - Copy the entire long URL from the terminal.
-    - Paste the URL into your web browser and press Enter.
-    - Log in with the **same Google account** you added as a Test User in Step 1.4.
-      - Google will show a screen asking for permission for your app ("Claude Docs MCP Access" or similar) to access Google Docs, Sheets, and Drive. Review and click "**Allow**" or "**Grant**".
-4.  **Get the Authorization Code:**
-    - After clicking Allow, your browser will likely try to redirect to `http://localhost` and show a **"This site can't be reached" error**. **THIS IS NORMAL!**
-    - Look **carefully** at the URL in your browser's address bar. It will look like `http://localhost/?code=4/0Axxxxxxxxxxxxxx&scope=...`
-    - Copy the long string of characters **between `code=` and the `&scope` part**. This is your single-use authorization code.
-5.  **Paste Code into Terminal:** Go back to your terminal where the script is waiting ("Enter the code from that page here:"). Paste the code you just copied.
-6.  **Press Enter.**
-7.  **Success!** The script should print:
-    - "Authentication successful!"
-    - "Token stored to .../token.json"
-    - It will then finish starting and likely print "Awaiting MCP client connection via stdio..." or similar, and then exit (or you can press `Ctrl+C` to stop it).
-8.  ✅ **Check:** You should now see a new file named `token.json` in your `gdrive-mcp` folder.
-9.  ⚠️ **SECURITY WARNING:** This `token.json` file contains the key that allows the server to access your Google account _without_ asking again. Protect it like a password. **Do not commit it to GitHub.** The included `.gitignore` file should prevent this automatically.
+For Google Workspace organizations using domain-wide delegation:
 
-### Alternative: Service Account with Domain-Wide Delegation (Enterprise)
-
-For Google Workspace organizations that need to access documents across the domain without individual user OAuth flows, you can use a service account with domain-wide delegation.
-
-**Prerequisites:**
-- Google Workspace admin access to configure domain-wide delegation
-- A service account with domain-wide delegation enabled
-
-**Setup:**
-
-1. **Create a Service Account** in Google Cloud Console:
-   - Go to "APIs & Services" → "Credentials" → "Create Credentials" → "Service Account"
-   - Download the JSON key file
-
-2. **Enable Domain-Wide Delegation** in Google Workspace Admin Console:
-   - Go to Security → API Controls → Domain-wide delegation
-   - Add the service account's client ID with the required scopes:
-     - `https://www.googleapis.com/auth/documents`
-     - `https://www.googleapis.com/auth/drive`
-     - `https://www.googleapis.com/auth/spreadsheets`
-
-3. **Configure Environment Variables:**
+1. Create a service account in Google Cloud Console (APIs & Services → Credentials → Service Account)
+2. Enable domain-wide delegation in Workspace Admin Console (Security → API Controls)
+3. Set environment variables:
    ```bash
-   # Path to your service account key file
    export SERVICE_ACCOUNT_PATH="/path/to/service-account-key.json"
-
-   # Email of the user to impersonate (required for domain-wide delegation)
    export GOOGLE_IMPERSONATE_USER="user@yourdomain.com"
    ```
 
-4. **Update Claude Desktop Config** (add environment variables):
-   ```json
-   {
-     "mcpServers": {
-       "gdrive-mcp": {
-         "command": "node",
-         "args": ["/PATH/TO/gdrive-mcp/dist/server.js"],
-         "env": {
-           "SERVICE_ACCOUNT_PATH": "/path/to/service-account-key.json",
-           "GOOGLE_IMPERSONATE_USER": "user@yourdomain.com"
-         }
-       }
-     }
-   }
-   ```
+Update Claude Desktop config to include these environment variables in the `env` object.
 
-When `GOOGLE_IMPERSONATE_USER` is set, the server will impersonate that user when accessing Google APIs, allowing access to that user's documents and Drive.
+</details>
 
-### Step 6: Configure Claude Desktop (Optional)
+### Step 4: Configure Claude Desktop
 
-If you want to use this server with Claude Desktop, you need to tell Claude how to run it.
+Edit `claude_desktop_config.json`:
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux:** `~/.config/Claude/claude_desktop_config.json`
 
-1.  **Find Your Absolute Path:** You need the full path to the server code.
-    - In your terminal, make sure you are still inside the `gdrive-mcp` directory.
-    - Run the `pwd` command (on macOS/Linux) or `cd` (on Windows, just displays the path).
-    - Copy the full path (e.g., `/Users/yourname/projects/gdrive-mcp` or `C:\Users\yourname\projects\gdrive-mcp`).
-2.  **Locate `claude_desktop_config.json`:** Find Claude's configuration file:
-    - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json` (You might need to use Finder's "Go" -> "Go to Folder..." menu and paste `~/Library/Application Support/Claude/`)
-    - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json` (Paste `%APPDATA%\Claude` into File Explorer's address bar)
-    - **Linux:** `~/.config/Claude/claude_desktop_config.json`
-    - _If the `Claude` folder or `claude_desktop_config.json` file doesn't exist, create them._
-3.  **Edit `claude_desktop_config.json`:** Open the file in a text editor. Add or modify the `mcpServers` section like this, **replacing `/PATH/TO/YOUR/CLONED/REPO` with the actual absolute path you copied in Step 6.1**:
+Add to `mcpServers` (replace `/PATH/TO` with your absolute path from `pwd`):
 
-    ```json
-    {
-      "mcpServers": {
-        "gdrive-mcp": {
-          "command": "node",
-          "args": [
-            "/PATH/TO/YOUR/CLONED/REPO/gdrive-mcp/dist/server.js"
-          ],
-          "env": {}
-        }
-        // Add commas here if you have other servers defined
-      }
-      // Other Claude settings might be here
+```json
+{
+  "mcpServers": {
+    "gdrive-mcp": {
+      "command": "node",
+      "args": ["/PATH/TO/gdrive-mcp/dist/server.js"],
+      "env": {}
     }
-    ```
+  }
+}
+```
 
-    - **Make sure the path in `"args"` is correct and absolute!**
-    - If the file already existed, carefully merge this entry into the existing `mcpServers` object. Ensure the JSON is valid (check commas!).
-
-4.  **Save `mcp_config.json`.**
-5.  **Restart Claude Desktop:** Close Claude completely and reopen it.
+Restart Claude Desktop to load the server.
 
 ---
 
@@ -583,7 +396,7 @@ For the complete list of OAuth 2.0 scopes, see: [OAuth 2.0 Scopes for Google API
 
 ## About
 
-This project is maintained by [Starfysh](https://starfysh.net), providing fractional product and technology leadership for technical founders.
+Maintained by [Starfysh](https://starfysh.net) — fractional product + tech leadership for technical founders.
 
 Originally forked from [a-bonus/google-docs-mcp](https://github.com/a-bonus/google-docs-mcp).
 
