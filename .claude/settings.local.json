@@ -26,7 +26,8 @@
       "Bash(find:*)",
       "Bash(gh auth:*)",
       "WebFetch(domain:starfysh.net)",
-      "Bash(gh repo list:*)"
+      "Bash(gh repo list:*)",
+      "Bash(ls:*)"
     ]
   }
 }
