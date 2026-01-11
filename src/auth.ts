@@ -5,21 +5,47 @@ import { JWT } from 'google-auth-library'; // ADDED: Import for Service Account 
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as readline from 'readline/promises';
-import { fileURLToPath } from 'url';
+import * as os from 'os';
+import { existsSync } from 'fs';
 
-// --- Calculate paths relative to this script file (ESM way) ---
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const projectRootDir = path.resolve(__dirname, '..');
+// --- Calculate paths with fallback locations ---
+const CONFIG_DIR = path.join(os.homedir(), '.config', 'gdrive-mcp');
 
-const TOKEN_PATH = path.join(projectRootDir, 'token.json');
-const CREDENTIALS_PATH = path.join(projectRootDir, 'credentials.json');
+function resolvePath(envVar: string, filename: string): string {
+  // 1. Environment variable (explicit override)
+  if (process.env[envVar]) {
+    return process.env[envVar]!;
+  }
+  // 2. Current working directory
+  const cwdPath = path.join(process.cwd(), filename);
+  if (existsSync(cwdPath)) {
+    return cwdPath;
+  }
+  // 3. User config directory (~/.config/gdrive-mcp/)
+  const configPath = path.join(CONFIG_DIR, filename);
+  if (existsSync(configPath)) {
+    return configPath;
+  }
+  // Default to cwd (will error at read time with helpful message)
+  return cwdPath;
+}
+
+const TOKEN_PATH = resolvePath('GDRIVE_MCP_TOKEN_PATH', 'token.json');
+const CREDENTIALS_PATH = resolvePath('GDRIVE_MCP_CREDENTIALS_PATH', 'credentials.json');
 // --- End of path calculation ---
 
 const SCOPES = [
+  // Core APIs
   'https://www.googleapis.com/auth/documents',
   'https://www.googleapis.com/auth/drive', // Full Drive access for listing, searching, and document discovery
-  'https://www.googleapis.com/auth/spreadsheets' // Google Sheets API access
+  'https://www.googleapis.com/auth/spreadsheets', // Google Sheets API access
+  // Slides API
+  'https://www.googleapis.com/auth/presentations',
+  // Forms API (read-only - API doesn't support writes)
+  'https://www.googleapis.com/auth/forms.body.readonly',
+  'https://www.googleapis.com/auth/forms.responses.readonly',
+  // Apps Script API
+  'https://www.googleapis.com/auth/script.projects',
 ];
 
 // --- NEW FUNCTION: Handles Service Account Authentication ---
@@ -40,19 +66,12 @@ async function authorizeWithServiceAccount(): Promise<JWT> {
       subject: impersonateUser, // Enables domain-wide delegation when set
     });
     await auth.authorize();
-    if (impersonateUser) {
-      console.error(`Service Account authentication successful, impersonating: ${impersonateUser}`);
-    } else {
-      console.error('Service Account authentication successful!');
-    }
     return auth;
   } catch (error: any) {
     if (error.code === 'ENOENT') {
-      console.error(`FATAL: Service account key file not found at path: ${serviceAccountPath}`);
-      throw new Error(`Service account key file not found. Please check the path in SERVICE_ACCOUNT_PATH.`);
+      throw new Error(`Service account key file not found at: ${serviceAccountPath}`);
     }
-    console.error('FATAL: Error loading or authorizing the service account key:', error.message);
-    throw new Error('Failed to authorize using the service account. Ensure the key file is valid and the path is correct.');
+    throw new Error(`Service account auth failed: ${error.message}`);
   }
 }
 // --- END OF NEW FUNCTION---
@@ -71,16 +90,41 @@ async function loadSavedCredentialsIfExist(): Promise<OAuth2Client | null> {
 }
 
 async function loadClientSecrets() {
-  const content = await fs.readFile(CREDENTIALS_PATH);
-  const keys = JSON.parse(content.toString());
-  const key = keys.installed || keys.web;
-   if (!key) throw new Error("Could not find client secrets in credentials.json.");
-  return {
-      client_id: key.client_id,
-      client_secret: key.client_secret,
-      redirect_uris: key.redirect_uris || ['http://localhost:3000/'], // Default for web clients
-      client_type: keys.web ? 'web' : 'installed'
-  };
+  try {
+    const content = await fs.readFile(CREDENTIALS_PATH);
+    const keys = JSON.parse(content.toString());
+    const key = keys.installed || keys.web;
+    if (!key) throw new Error("Could not find client secrets in credentials.json.");
+    return {
+        client_id: key.client_id,
+        client_secret: key.client_secret,
+        redirect_uris: key.redirect_uris || ['http://localhost:3000/'],
+        client_type: keys.web ? 'web' : 'installed'
+    };
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      console.error(`
+╔════════════════════════════════════════════════════════════════════╗
+║                    SETUP REQUIRED                                  ║
+╠════════════════════════════════════════════════════════════════════╣
+║  credentials.json not found!                                       ║
+║                                                                    ║
+║  To use this MCP server, you need Google OAuth credentials:       ║
+║                                                                    ║
+║  1. Go to: https://console.cloud.google.com/apis/credentials      ║
+║  2. Create OAuth 2.0 Client ID (Desktop app)                      ║
+║  3. Download JSON and save as: credentials.json                   ║
+║  4. Place in: ${process.cwd()}
+║     OR: ~/.config/gdrive-mcp/credentials.json                     ║
+║     OR: Set GDRIVE_MCP_CREDENTIALS_PATH env var                   ║
+║                                                                    ║
+║  Full guide: https://github.com/starfysh-tech/gdrive-mcp#setup    ║
+╚════════════════════════════════════════════════════════════════════╝
+`);
+      throw new Error('Setup required: credentials.json not found. See instructions above.');
+    }
+    throw error;
+  }
 }
 
 async function saveCredentials(client: OAuth2Client): Promise<void> {
@@ -92,15 +136,11 @@ async function saveCredentials(client: OAuth2Client): Promise<void> {
     refresh_token: client.credentials.refresh_token,
   });
   await fs.writeFile(TOKEN_PATH, payload);
-  console.error('Token stored to', TOKEN_PATH);
 }
 
 async function authenticate(): Promise<OAuth2Client> {
   const { client_secret, client_id, redirect_uris, client_type } = await loadClientSecrets();
-  // For web clients, use the configured redirect URI; for desktop clients, use 'urn:ietf:wg:oauth:2.0:oob'
   const redirectUri = client_type === 'web' ? redirect_uris[0] : 'urn:ietf:wg:oauth:2.0:oob';
-  console.error(`DEBUG: Using redirect URI: ${redirectUri}`);
-  console.error(`DEBUG: Client type: ${client_type}`);
   const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirectUri);
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -110,24 +150,32 @@ async function authenticate(): Promise<OAuth2Client> {
     scope: SCOPES.join(' '),
   });
 
-  console.error('DEBUG: Generated auth URL:', authorizeUrl);
-  console.error('Authorize this app by visiting this url:', authorizeUrl);
-  const code = await rl.question('Enter the code from that page here: ');
+  console.error(`
+┌─────────────────────────────────────────────────────────────────┐
+│  Google Authorization Required                                  │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Open this URL in your browser:                              │
+│                                                                 │
+│  ${authorizeUrl}
+│                                                                 │
+│  2. Sign in and grant access                                    │
+│  3. Copy the authorization code                                 │
+│  4. Paste it below                                              │
+└─────────────────────────────────────────────────────────────────┘
+`);
+  const code = await rl.question('Paste code here: ');
   rl.close();
 
   try {
     const { tokens } = await oAuth2Client.getToken(code);
     oAuth2Client.setCredentials(tokens);
-    if (tokens.refresh_token) { // Save only if we got a refresh token
-         await saveCredentials(oAuth2Client);
-    } else {
-         console.error("Did not receive refresh token. Token might expire.");
+    if (tokens.refresh_token) {
+      await saveCredentials(oAuth2Client);
     }
-    console.error('Authentication successful!');
+    console.error('✓ Authenticated successfully!\n');
     return oAuth2Client;
   } catch (err) {
-    console.error('Error retrieving access token', err);
-    throw new Error('Authentication failed');
+    throw new Error('Authentication failed - check that you copied the full code');
   }
 }
 
@@ -137,18 +185,13 @@ async function authenticate(): Promise<OAuth2Client> {
 export async function authorize(): Promise<OAuth2Client | JWT> {
   // Check if the Service Account environment variable is set.
   if (process.env.SERVICE_ACCOUNT_PATH) {
-    console.error('Service account path detected. Attempting service account authentication...');
     return authorizeWithServiceAccount();
   } else {
     // If not, execute the original OAuth 2.0 flow exactly as it was.
-    console.error('No service account path detected. Falling back to standard OAuth 2.0 flow...');
     let client = await loadSavedCredentialsIfExist();
     if (client) {
-      // Optional: Add token refresh logic here if needed, though library often handles it.
-      console.error('Using saved credentials.');
       return client;
     }
-    console.error('Starting authentication flow...');
     client = await authenticate();
     return client;
   }

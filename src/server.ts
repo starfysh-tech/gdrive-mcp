@@ -1,7 +1,16 @@
+#!/usr/bin/env node
 // src/server.ts
+
+// Filter out noisy library warnings BEFORE importing FastMCP
+const originalStderrWrite = process.stderr.write.bind(process.stderr);
+process.stderr.write = (chunk: string | Uint8Array, ...args: any[]): boolean => {
+  if (typeof chunk === 'string' && chunk.includes('[FastMCP warning]')) return true;
+  return originalStderrWrite(chunk, ...args);
+};
+
 import { FastMCP, UserError } from 'fastmcp';
 import { z } from 'zod';
-import { google, docs_v1, drive_v3, sheets_v4 } from 'googleapis';
+import { google, docs_v1, drive_v3, sheets_v4, slides_v1, forms_v1, script_v1 } from 'googleapis';
 import { authorize } from './auth.js';
 import { OAuth2Client } from 'google-auth-library';
 
@@ -17,7 +26,11 @@ ParagraphStyleParameters,
 ParagraphStyleArgs,
 ApplyTextStyleToolParameters, ApplyTextStyleToolArgs,
 ApplyParagraphStyleToolParameters, ApplyParagraphStyleToolArgs,
-NotImplementedError
+NotImplementedError,
+PresentationIdParameter,
+SlideIdParameter,
+FormIdParameter,
+ScriptIdParameter
 } from './types.js';
 import * as GDocsHelpers from './googleDocsApiHelpers.js';
 import * as SheetsHelpers from './googleSheetsApiHelpers.js';
@@ -26,30 +39,34 @@ let authClient: OAuth2Client | null = null;
 let googleDocs: docs_v1.Docs | null = null;
 let googleDrive: drive_v3.Drive | null = null;
 let googleSheets: sheets_v4.Sheets | null = null;
+let googleSlides: slides_v1.Slides | null = null;
+let googleForms: forms_v1.Forms | null = null;
+let googleScript: script_v1.Script | null = null;
 
 // --- Initialization ---
 async function initializeGoogleClient() {
-if (googleDocs && googleDrive && googleSheets) return { authClient, googleDocs, googleDrive, googleSheets };
-if (!authClient) { // Check authClient instead of googleDocs to allow re-attempt
+if (googleDocs && googleDrive && googleSheets && googleSlides && googleForms && googleScript) {
+  return { authClient, googleDocs, googleDrive, googleSheets, googleSlides, googleForms, googleScript };
+}
+if (!authClient) {
 try {
-console.error("Attempting to authorize Google API client...");
 const client = await authorize();
-authClient = client; // Assign client here
+authClient = client;
 googleDocs = google.docs({ version: 'v1', auth: authClient });
 googleDrive = google.drive({ version: 'v3', auth: authClient });
 googleSheets = google.sheets({ version: 'v4', auth: authClient });
-console.error("Google API client authorized successfully.");
-} catch (error) {
-console.error("FATAL: Failed to initialize Google API client:", error);
-authClient = null; // Reset on failure
-googleDocs = null;
-googleDrive = null;
-googleSheets = null;
-// Decide if server should exit or just fail tools
-throw new Error("Google client initialization failed. Cannot start server tools.");
+googleSlides = google.slides({ version: 'v1', auth: authClient });
+googleForms = google.forms({ version: 'v1', auth: authClient });
+googleScript = google.script({ version: 'v1', auth: authClient });
+} catch (error: any) {
+// Setup errors already show friendly instructions
+if (!error.message?.includes('Setup required')) {
+  console.error("Error:", error.message || error);
+}
+process.exit(1);
 }
 }
-// Ensure googleDocs, googleDrive, and googleSheets are set if authClient is valid
+// Ensure all clients are set if authClient is valid
 if (authClient && !googleDocs) {
 googleDocs = google.docs({ version: 'v1', auth: authClient });
 }
@@ -59,12 +76,21 @@ googleDrive = google.drive({ version: 'v3', auth: authClient });
 if (authClient && !googleSheets) {
 googleSheets = google.sheets({ version: 'v4', auth: authClient });
 }
-
-if (!googleDocs || !googleDrive || !googleSheets) {
-throw new Error("Google Docs, Drive, and Sheets clients could not be initialized.");
+if (authClient && !googleSlides) {
+googleSlides = google.slides({ version: 'v1', auth: authClient });
+}
+if (authClient && !googleForms) {
+googleForms = google.forms({ version: 'v1', auth: authClient });
+}
+if (authClient && !googleScript) {
+googleScript = google.script({ version: 'v1', auth: authClient });
 }
 
-return { authClient, googleDocs, googleDrive, googleSheets };
+if (!googleDocs || !googleDrive || !googleSheets || !googleSlides || !googleForms || !googleScript) {
+throw new Error("Google API clients could not be initialized.");
+}
+
+return { authClient, googleDocs, googleDrive, googleSheets, googleSlides, googleForms, googleScript };
 }
 
 // Set up process-level unhandled error/rejection handlers to prevent crashes
@@ -109,6 +135,33 @@ if (!sheets) {
 throw new UserError("Google Sheets client is not initialized. Authentication might have failed during startup or lost connection.");
 }
 return sheets;
+}
+
+// --- Helper to get Slides client within tools ---
+async function getSlidesClient() {
+const { googleSlides: slides } = await initializeGoogleClient();
+if (!slides) {
+throw new UserError("Google Slides client is not initialized. Authentication might have failed during startup or lost connection.");
+}
+return slides;
+}
+
+// --- Helper to get Forms client within tools ---
+async function getFormsClient() {
+const { googleForms: forms } = await initializeGoogleClient();
+if (!forms) {
+throw new UserError("Google Forms client is not initialized. Authentication might have failed during startup or lost connection.");
+}
+return forms;
+}
+
+// --- Helper to get Script client within tools ---
+async function getScriptClient() {
+const { googleScript: script } = await initializeGoogleClient();
+if (!script) {
+throw new UserError("Google Apps Script client is not initialized. Authentication might have failed during startup or lost connection.");
+}
+return script;
 }
 
 // === HELPER FUNCTIONS ===
@@ -2710,26 +2763,749 @@ execute: async (args, { log }) => {
 }
 });
 
+// =============================================
+// === GOOGLE SLIDES TOOLS ===
+// =============================================
+
+server.addTool({
+  name: 'getPresentation',
+  description: 'Gets metadata and structure of a Google Slides presentation.',
+  parameters: PresentationIdParameter,
+  execute: async (args, { log }) => {
+    const slides = await getSlidesClient();
+    log.info(`Getting presentation: ${args.presentationId}`);
+
+    try {
+      const response = await slides.presentations.get({
+        presentationId: args.presentationId,
+      });
+
+      const presentation = response.data;
+      const slideCount = presentation.slides?.length || 0;
+
+      let result = `**${presentation.title || 'Untitled Presentation'}**\n`;
+      result += `ID: ${presentation.presentationId}\n`;
+      result += `Slides: ${slideCount}\n\n`;
+
+      if (presentation.slides && presentation.slides.length > 0) {
+        result += `## Slides\n`;
+        presentation.slides.forEach((slide, index) => {
+          result += `${index + 1}. Slide ID: ${slide.objectId}\n`;
+        });
+      }
+
+      return result;
+    } catch (error: any) {
+      log.error(`Error getting presentation: ${error.message}`);
+      if (error.code === 404) throw new UserError(`Presentation not found (ID: ${args.presentationId}).`);
+      if (error.code === 403) throw new UserError(`Permission denied for presentation (ID: ${args.presentationId}).`);
+      throw new UserError(`Failed to get presentation: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+server.addTool({
+  name: 'listSlides',
+  description: 'Lists all slides in a Google Slides presentation with their IDs and basic info.',
+  parameters: PresentationIdParameter,
+  execute: async (args, { log }) => {
+    const slides = await getSlidesClient();
+    log.info(`Listing slides for presentation: ${args.presentationId}`);
+
+    try {
+      const response = await slides.presentations.get({
+        presentationId: args.presentationId,
+      });
+
+      const presentation = response.data;
+      const slideList = presentation.slides || [];
+
+      if (slideList.length === 0) {
+        return 'This presentation has no slides.';
+      }
+
+      let result = `Found ${slideList.length} slide(s) in "${presentation.title || 'Untitled'}":\n\n`;
+
+      slideList.forEach((slide, index) => {
+        result += `**Slide ${index + 1}**\n`;
+        result += `  ID: ${slide.objectId}\n`;
+        const elementCount = slide.pageElements?.length || 0;
+        result += `  Elements: ${elementCount}\n\n`;
+      });
+
+      return result;
+    } catch (error: any) {
+      log.error(`Error listing slides: ${error.message}`);
+      if (error.code === 404) throw new UserError(`Presentation not found (ID: ${args.presentationId}).`);
+      if (error.code === 403) throw new UserError(`Permission denied for presentation (ID: ${args.presentationId}).`);
+      throw new UserError(`Failed to list slides: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+server.addTool({
+  name: 'createPresentation',
+  description: 'Creates a new Google Slides presentation.',
+  parameters: z.object({
+    title: z.string().describe('The title for the new presentation.'),
+  }),
+  execute: async (args, { log }) => {
+    const slides = await getSlidesClient();
+    log.info(`Creating presentation: ${args.title}`);
+
+    try {
+      const response = await slides.presentations.create({
+        requestBody: {
+          title: args.title,
+        },
+      });
+
+      const presentation = response.data;
+      return `Created presentation: "${presentation.title}"\nID: ${presentation.presentationId}\nLink: https://docs.google.com/presentation/d/${presentation.presentationId}/edit`;
+    } catch (error: any) {
+      log.error(`Error creating presentation: ${error.message}`);
+      throw new UserError(`Failed to create presentation: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+server.addTool({
+  name: 'getSlide',
+  description: 'Gets detailed content of a specific slide in a presentation.',
+  parameters: PresentationIdParameter.extend({
+    slideId: z.string().describe('The object ID of the slide to retrieve.'),
+  }),
+  execute: async (args, { log }) => {
+    const slides = await getSlidesClient();
+    log.info(`Getting slide ${args.slideId} from presentation: ${args.presentationId}`);
+
+    try {
+      const response = await slides.presentations.pages.get({
+        presentationId: args.presentationId,
+        pageObjectId: args.slideId,
+      });
+
+      const slide = response.data;
+      let result = `**Slide: ${slide.objectId}**\n\n`;
+
+      if (slide.pageElements && slide.pageElements.length > 0) {
+        result += `## Elements (${slide.pageElements.length})\n`;
+        slide.pageElements.forEach((element, index) => {
+          result += `${index + 1}. ID: ${element.objectId}`;
+          if (element.shape) {
+            result += ` (Shape: ${element.shape.shapeType || 'unknown'})`;
+            if (element.shape.text?.textElements) {
+              const textContent = element.shape.text.textElements
+                .filter((te: any) => te.textRun?.content)
+                .map((te: any) => te.textRun?.content)
+                .join('');
+              if (textContent.trim()) {
+                result += `\n   Text: "${textContent.trim().substring(0, 100)}${textContent.length > 100 ? '...' : ''}"`;
+              }
+            }
+          }
+          if (element.image) result += ` (Image)`;
+          if (element.table) result += ` (Table: ${element.table.rows}x${element.table.columns})`;
+          result += `\n`;
+        });
+      } else {
+        result += 'This slide has no elements.';
+      }
+
+      return result;
+    } catch (error: any) {
+      log.error(`Error getting slide: ${error.message}`);
+      if (error.code === 404) throw new UserError(`Slide or presentation not found.`);
+      if (error.code === 403) throw new UserError(`Permission denied.`);
+      throw new UserError(`Failed to get slide: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+server.addTool({
+  name: 'createSlide',
+  description: 'Adds a new slide to a Google Slides presentation.',
+  parameters: PresentationIdParameter.extend({
+    insertionIndex: z.number().int().min(0).optional().describe('Position to insert the slide (0 = beginning). Defaults to end.'),
+    layoutType: z.enum(['BLANK', 'TITLE', 'TITLE_AND_BODY', 'TITLE_AND_TWO_COLUMNS', 'TITLE_ONLY', 'CAPTION_ONLY', 'BIG_NUMBER']).optional().default('BLANK').describe('The layout type for the new slide.'),
+  }),
+  execute: async (args, { log }) => {
+    const slides = await getSlidesClient();
+    log.info(`Creating slide in presentation: ${args.presentationId}`);
+
+    try {
+      const requests: slides_v1.Schema$Request[] = [{
+        createSlide: {
+          insertionIndex: args.insertionIndex,
+          slideLayoutReference: {
+            predefinedLayout: args.layoutType,
+          },
+        },
+      }];
+
+      const response = await slides.presentations.batchUpdate({
+        presentationId: args.presentationId,
+        requestBody: { requests },
+      });
+
+      const createSlideResponse = response.data.replies?.[0]?.createSlide;
+      if (createSlideResponse?.objectId) {
+        return `Created new slide with ID: ${createSlideResponse.objectId}`;
+      }
+      return 'Slide created successfully.';
+    } catch (error: any) {
+      log.error(`Error creating slide: ${error.message}`);
+      if (error.code === 404) throw new UserError(`Presentation not found (ID: ${args.presentationId}).`);
+      if (error.code === 403) throw new UserError(`Permission denied for presentation (ID: ${args.presentationId}).`);
+      throw new UserError(`Failed to create slide: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+server.addTool({
+  name: 'deleteSlide',
+  description: 'Deletes a slide from a Google Slides presentation.',
+  parameters: PresentationIdParameter.extend({
+    slideId: z.string().describe('The object ID of the slide to delete.'),
+  }),
+  execute: async (args, { log }) => {
+    const slides = await getSlidesClient();
+    log.info(`Deleting slide ${args.slideId} from presentation: ${args.presentationId}`);
+
+    try {
+      const requests: slides_v1.Schema$Request[] = [{
+        deleteObject: {
+          objectId: args.slideId,
+        },
+      }];
+
+      await slides.presentations.batchUpdate({
+        presentationId: args.presentationId,
+        requestBody: { requests },
+      });
+
+      return `Deleted slide: ${args.slideId}`;
+    } catch (error: any) {
+      log.error(`Error deleting slide: ${error.message}`);
+      if (error.code === 404) throw new UserError(`Slide or presentation not found.`);
+      if (error.code === 403) throw new UserError(`Permission denied.`);
+      throw new UserError(`Failed to delete slide: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+// =============================================
+// === GOOGLE FORMS TOOLS (READ-ONLY) ===
+// =============================================
+
+server.addTool({
+  name: 'getForm',
+  description: 'Gets the structure and metadata of a Google Form. Note: Google Forms API is read-only.',
+  parameters: FormIdParameter,
+  execute: async (args, { log }) => {
+    const forms = await getFormsClient();
+    log.info(`Getting form: ${args.formId}`);
+
+    try {
+      const response = await forms.forms.get({
+        formId: args.formId,
+      });
+
+      const form = response.data;
+      let result = `**${form.info?.title || 'Untitled Form'}**\n`;
+      if (form.info?.description) {
+        result += `Description: ${form.info.description}\n`;
+      }
+      result += `Form ID: ${form.formId}\n`;
+      result += `Response URL: ${form.responderUri}\n`;
+      result += `Edit URL: https://docs.google.com/forms/d/${form.formId}/edit\n\n`;
+
+      const items = form.items || [];
+      result += `## Questions (${items.length})\n`;
+
+      items.forEach((item, index) => {
+        result += `\n${index + 1}. **${item.title || 'Untitled'}**`;
+        if (item.questionItem) {
+          const question = item.questionItem.question;
+          if (question?.choiceQuestion) {
+            result += ` (${question.choiceQuestion.type || 'Choice'})`;
+            const options = question.choiceQuestion.options || [];
+            options.forEach((opt: any) => {
+              result += `\n   - ${opt.value}`;
+            });
+          } else if (question?.textQuestion) {
+            result += question.textQuestion.paragraph ? ' (Long answer)' : ' (Short answer)';
+          } else if (question?.scaleQuestion) {
+            result += ` (Scale: ${question.scaleQuestion.low}-${question.scaleQuestion.high})`;
+          }
+          if (question?.required) result += ' *Required*';
+        }
+        result += '\n';
+      });
+
+      return result;
+    } catch (error: any) {
+      log.error(`Error getting form: ${error.message}`);
+      if (error.code === 404) throw new UserError(`Form not found (ID: ${args.formId}).`);
+      if (error.code === 403) throw new UserError(`Permission denied for form (ID: ${args.formId}).`);
+      throw new UserError(`Failed to get form: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+server.addTool({
+  name: 'listFormQuestions',
+  description: 'Lists all questions in a Google Form with their IDs and types.',
+  parameters: FormIdParameter,
+  execute: async (args, { log }) => {
+    const forms = await getFormsClient();
+    log.info(`Listing questions for form: ${args.formId}`);
+
+    try {
+      const response = await forms.forms.get({
+        formId: args.formId,
+      });
+
+      const form = response.data;
+      const items = form.items || [];
+
+      if (items.length === 0) {
+        return 'This form has no questions.';
+      }
+
+      let result = `Found ${items.length} item(s) in "${form.info?.title || 'Untitled'}":\n\n`;
+
+      items.forEach((item, index) => {
+        result += `**${index + 1}. ${item.title || 'Untitled'}**\n`;
+        result += `   Item ID: ${item.itemId}\n`;
+        if (item.questionItem) {
+          const q = item.questionItem.question;
+          if (q?.questionId) result += `   Question ID: ${q.questionId}\n`;
+          if (q?.choiceQuestion) result += `   Type: ${q.choiceQuestion.type || 'Choice'}\n`;
+          else if (q?.textQuestion) result += `   Type: ${q.textQuestion.paragraph ? 'Paragraph' : 'Text'}\n`;
+          else if (q?.scaleQuestion) result += `   Type: Scale\n`;
+          else if (q?.dateQuestion) result += `   Type: Date\n`;
+          else if (q?.timeQuestion) result += `   Type: Time\n`;
+          else if (q?.fileUploadQuestion) result += `   Type: File Upload\n`;
+          if (q?.required) result += `   Required: Yes\n`;
+        } else if (item.pageBreakItem) {
+          result += `   Type: Page Break\n`;
+        } else if (item.textItem) {
+          result += `   Type: Text/Description\n`;
+        }
+        result += '\n';
+      });
+
+      return result;
+    } catch (error: any) {
+      log.error(`Error listing form questions: ${error.message}`);
+      if (error.code === 404) throw new UserError(`Form not found (ID: ${args.formId}).`);
+      if (error.code === 403) throw new UserError(`Permission denied for form (ID: ${args.formId}).`);
+      throw new UserError(`Failed to list form questions: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+server.addTool({
+  name: 'listFormResponses',
+  description: 'Lists all responses submitted to a Google Form.',
+  parameters: FormIdParameter.extend({
+    maxResults: z.number().int().min(1).max(500).optional().default(50).describe('Maximum number of responses to return.'),
+  }),
+  execute: async (args, { log }) => {
+    const forms = await getFormsClient();
+    log.info(`Listing responses for form: ${args.formId}`);
+
+    try {
+      const response = await forms.forms.responses.list({
+        formId: args.formId,
+        pageSize: args.maxResults,
+      });
+
+      const responses = response.data.responses || [];
+
+      if (responses.length === 0) {
+        return 'This form has no responses yet.';
+      }
+
+      let result = `Found ${responses.length} response(s):\n\n`;
+
+      responses.forEach((resp, index) => {
+        result += `**Response ${index + 1}**\n`;
+        result += `  Response ID: ${resp.responseId}\n`;
+        result += `  Submitted: ${resp.lastSubmittedTime}\n`;
+        if (resp.respondentEmail) {
+          result += `  Respondent: ${resp.respondentEmail}\n`;
+        }
+        result += '\n';
+      });
+
+      if (response.data.nextPageToken) {
+        result += `\n_More responses available. Showing first ${responses.length}._`;
+      }
+
+      return result;
+    } catch (error: any) {
+      log.error(`Error listing form responses: ${error.message}`);
+      if (error.code === 404) throw new UserError(`Form not found (ID: ${args.formId}).`);
+      if (error.code === 403) throw new UserError(`Permission denied. Make sure you have access to view responses.`);
+      throw new UserError(`Failed to list responses: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+server.addTool({
+  name: 'getFormResponse',
+  description: 'Gets a specific response submitted to a Google Form with all answers.',
+  parameters: FormIdParameter.extend({
+    responseId: z.string().describe('The ID of the specific response to retrieve.'),
+  }),
+  execute: async (args, { log }) => {
+    const forms = await getFormsClient();
+    log.info(`Getting response ${args.responseId} for form: ${args.formId}`);
+
+    try {
+      // First get form structure to map question IDs to titles
+      const formResponse = await forms.forms.get({
+        formId: args.formId,
+      });
+      const form = formResponse.data;
+      const questionMap = new Map<string, string>();
+      (form.items || []).forEach(item => {
+        if (item.questionItem?.question?.questionId && item.title) {
+          questionMap.set(item.questionItem.question.questionId, item.title);
+        }
+      });
+
+      // Get the specific response
+      const response = await forms.forms.responses.get({
+        formId: args.formId,
+        responseId: args.responseId,
+      });
+
+      const resp = response.data;
+      let result = `**Response Details**\n`;
+      result += `Response ID: ${resp.responseId}\n`;
+      result += `Submitted: ${resp.lastSubmittedTime}\n`;
+      if (resp.respondentEmail) {
+        result += `Respondent: ${resp.respondentEmail}\n`;
+      }
+      result += `\n## Answers\n`;
+
+      const answers = resp.answers || {};
+      for (const [questionId, answer] of Object.entries(answers)) {
+        const questionTitle = questionMap.get(questionId) || questionId;
+        result += `\n**${questionTitle}**\n`;
+
+        const textAnswers = (answer as any).textAnswers?.answers || [];
+        textAnswers.forEach((a: any) => {
+          result += `  ${a.value}\n`;
+        });
+      }
+
+      return result;
+    } catch (error: any) {
+      log.error(`Error getting form response: ${error.message}`);
+      if (error.code === 404) throw new UserError(`Form or response not found.`);
+      if (error.code === 403) throw new UserError(`Permission denied.`);
+      throw new UserError(`Failed to get response: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+// =============================================
+// === GOOGLE APPS SCRIPT TOOLS ===
+// =============================================
+
+server.addTool({
+  name: 'listScriptDeployments',
+  description: 'Lists deployments for a Google Apps Script project.',
+  parameters: ScriptIdParameter.extend({
+    maxResults: z.number().int().min(1).max(50).optional().default(20).describe('Maximum number of deployments to return.'),
+  }),
+  execute: async (args, { log }) => {
+    const script = await getScriptClient();
+    log.info(`Listing deployments for script: ${args.scriptId}`);
+
+    try {
+      const response = await script.projects.deployments.list({
+        scriptId: args.scriptId,
+        pageSize: args.maxResults,
+      });
+
+      const deployments = response.data.deployments || [];
+
+      if (deployments.length === 0) {
+        return `No deployments found for script ${args.scriptId}.`;
+      }
+
+      let result = `Found ${deployments.length} deployment(s):\n\n`;
+
+      deployments.forEach((deployment, index: number) => {
+        result += `**${index + 1}. ${deployment.deploymentId}**\n`;
+        if (deployment.deploymentConfig) {
+          result += `   Description: ${deployment.deploymentConfig.description || 'None'}\n`;
+          result += `   Version: ${deployment.deploymentConfig.versionNumber || 'HEAD'}\n`;
+        }
+        if (deployment.updateTime) {
+          result += `   Updated: ${deployment.updateTime}\n`;
+        }
+        result += '\n';
+      });
+
+      return result;
+    } catch (error: any) {
+      log.error(`Error listing deployments: ${error.message}`);
+      if (error.code === 404) throw new UserError(`Script project not found (ID: ${args.scriptId}).`);
+      if (error.code === 403) throw new UserError(`Permission denied. Make sure the Apps Script API is enabled.`);
+      throw new UserError(`Failed to list deployments: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+server.addTool({
+  name: 'getScriptProject',
+  description: 'Gets metadata about a Google Apps Script project.',
+  parameters: ScriptIdParameter,
+  execute: async (args, { log }) => {
+    const script = await getScriptClient();
+    log.info(`Getting script project: ${args.scriptId}`);
+
+    try {
+      const response = await script.projects.get({
+        scriptId: args.scriptId,
+      });
+
+      const project = response.data;
+      let result = `**${project.title || 'Untitled Project'}**\n`;
+      result += `Script ID: ${project.scriptId}\n`;
+      result += `Create Time: ${project.createTime}\n`;
+      result += `Update Time: ${project.updateTime}\n`;
+      if (project.parentId) {
+        result += `Parent ID: ${project.parentId}\n`;
+      }
+      result += `\nEdit: https://script.google.com/d/${project.scriptId}/edit`;
+
+      return result;
+    } catch (error: any) {
+      log.error(`Error getting script project: ${error.message}`);
+      if (error.code === 404) throw new UserError(`Script project not found (ID: ${args.scriptId}).`);
+      if (error.code === 403) throw new UserError(`Permission denied for script project.`);
+      throw new UserError(`Failed to get project: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+server.addTool({
+  name: 'createScriptProject',
+  description: 'Creates a new Google Apps Script project.',
+  parameters: z.object({
+    title: z.string().describe('The title for the new script project.'),
+    parentId: z.string().optional().describe('Optional: ID of a Drive folder, Docs, Sheets, or Forms file to bind the script to.'),
+  }),
+  execute: async (args, { log }) => {
+    const script = await getScriptClient();
+    log.info(`Creating script project: ${args.title}`);
+
+    try {
+      const response = await script.projects.create({
+        requestBody: {
+          title: args.title,
+          parentId: args.parentId,
+        },
+      });
+
+      const project = response.data;
+      return `Created script project: "${project.title}"\nScript ID: ${project.scriptId}\nEdit: https://script.google.com/d/${project.scriptId}/edit`;
+    } catch (error: any) {
+      log.error(`Error creating script project: ${error.message}`);
+      throw new UserError(`Failed to create project: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+server.addTool({
+  name: 'getScriptContent',
+  description: 'Gets the source files of a Google Apps Script project.',
+  parameters: ScriptIdParameter,
+  execute: async (args, { log }) => {
+    const script = await getScriptClient();
+    log.info(`Getting content for script: ${args.scriptId}`);
+
+    try {
+      const response = await script.projects.getContent({
+        scriptId: args.scriptId,
+      });
+
+      const content = response.data;
+      const files = content.files || [];
+
+      if (files.length === 0) {
+        return 'This project has no files.';
+      }
+
+      let result = `Found ${files.length} file(s) in project:\n\n`;
+
+      files.forEach((file, index) => {
+        result += `**${index + 1}. ${file.name}** (${file.type})\n`;
+        result += '```\n';
+        result += (file.source || '(empty)').substring(0, 1000);
+        if ((file.source || '').length > 1000) {
+          result += '\n... (truncated)';
+        }
+        result += '\n```\n\n';
+      });
+
+      return result;
+    } catch (error: any) {
+      log.error(`Error getting script content: ${error.message}`);
+      if (error.code === 404) throw new UserError(`Script project not found (ID: ${args.scriptId}).`);
+      if (error.code === 403) throw new UserError(`Permission denied for script project.`);
+      throw new UserError(`Failed to get content: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+server.addTool({
+  name: 'updateScriptContent',
+  description: 'Updates the source files of a Google Apps Script project.',
+  parameters: ScriptIdParameter.extend({
+    files: z.array(z.object({
+      name: z.string().describe('File name (e.g., "Code", "Utils").'),
+      type: z.enum(['SERVER_JS', 'HTML', 'JSON']).describe('File type: SERVER_JS for .gs files, HTML for .html files, JSON for appsscript.json.'),
+      source: z.string().describe('The source code content.'),
+    })).describe('Array of files to update. This replaces all existing files.'),
+  }),
+  execute: async (args, { log }) => {
+    const script = await getScriptClient();
+    log.info(`Updating content for script: ${args.scriptId}`);
+
+    try {
+      const response = await script.projects.updateContent({
+        scriptId: args.scriptId,
+        requestBody: {
+          files: args.files.map(f => ({
+            name: f.name,
+            type: f.type,
+            source: f.source,
+          })),
+        },
+      });
+
+      const updatedFiles = response.data.files || [];
+      return `Updated ${updatedFiles.length} file(s) in project.`;
+    } catch (error: any) {
+      log.error(`Error updating script content: ${error.message}`);
+      if (error.code === 404) throw new UserError(`Script project not found (ID: ${args.scriptId}).`);
+      if (error.code === 403) throw new UserError(`Permission denied for script project.`);
+      throw new UserError(`Failed to update content: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+server.addTool({
+  name: 'listScriptVersions',
+  description: 'Lists all versions of a Google Apps Script project.',
+  parameters: ScriptIdParameter,
+  execute: async (args, { log }) => {
+    const script = await getScriptClient();
+    log.info(`Listing versions for script: ${args.scriptId}`);
+
+    try {
+      const response = await script.projects.versions.list({
+        scriptId: args.scriptId,
+        pageSize: 50,
+      });
+
+      const versions = response.data.versions || [];
+
+      if (versions.length === 0) {
+        return 'This project has no saved versions.';
+      }
+
+      let result = `Found ${versions.length} version(s):\n\n`;
+
+      versions.forEach((version, index) => {
+        result += `**Version ${version.versionNumber}**\n`;
+        if (version.description) {
+          result += `   Description: ${version.description}\n`;
+        }
+        result += `   Created: ${version.createTime}\n\n`;
+      });
+
+      return result;
+    } catch (error: any) {
+      log.error(`Error listing script versions: ${error.message}`);
+      if (error.code === 404) throw new UserError(`Script project not found (ID: ${args.scriptId}).`);
+      if (error.code === 403) throw new UserError(`Permission denied for script project.`);
+      throw new UserError(`Failed to list versions: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
+server.addTool({
+  name: 'runScript',
+  description: 'Executes a function in a deployed Google Apps Script project. IMPORTANT: The script must be deployed as an API Executable and share a Cloud project with this application.',
+  parameters: ScriptIdParameter.extend({
+    functionName: z.string().describe('The name of the function to execute.'),
+    parameters: z.array(z.any()).optional().describe('Optional array of parameters to pass to the function.'),
+  }),
+  execute: async (args, { log }) => {
+    const script = await getScriptClient();
+    log.info(`Running function "${args.functionName}" in script: ${args.scriptId}`);
+
+    try {
+      const response = await script.scripts.run({
+        scriptId: args.scriptId,
+        requestBody: {
+          function: args.functionName,
+          parameters: args.parameters || [],
+        },
+      });
+
+      const result = response.data;
+
+      if (result.error) {
+        const errorDetails = result.error.details || [];
+        let errorMessage = `Script execution error: ${result.error.message || 'Unknown error'}`;
+        errorDetails.forEach((detail: any) => {
+          if (detail.scriptStackTraceElements) {
+            errorMessage += '\n\nStack trace:';
+            detail.scriptStackTraceElements.forEach((element: any) => {
+              errorMessage += `\n  at ${element.function} (line ${element.lineNumber})`;
+            });
+          }
+        });
+        throw new UserError(errorMessage);
+      }
+
+      if (result.response) {
+        const returnValue = (result.response as any).result;
+        if (returnValue === undefined || returnValue === null) {
+          return 'Function executed successfully (no return value).';
+        }
+        return `Function returned:\n${JSON.stringify(returnValue, null, 2)}`;
+      }
+
+      return 'Function executed successfully.';
+    } catch (error: any) {
+      log.error(`Error running script: ${error.message}`);
+      if (error instanceof UserError) throw error;
+      if (error.code === 404) throw new UserError(`Script not found or not deployed as API Executable.`);
+      if (error.code === 403) throw new UserError(`Permission denied. Ensure the script is deployed and shares a Cloud project with this application.`);
+      throw new UserError(`Failed to run script: ${error.message || 'Unknown error'}`);
+    }
+  }
+});
+
 // --- Server Startup ---
 async function startServer() {
 try {
-await initializeGoogleClient(); // Authorize BEFORE starting listeners
-console.error("Starting Ultimate Google Docs & Sheets MCP server...");
-
-      // Using stdio as before
-      const configToUse = {
-          transportType: "stdio" as const,
-      };
-
-      // Start the server with proper error handling
-      server.start(configToUse);
-      console.error(`MCP Server running using ${configToUse.transportType}. Awaiting client connection...`);
-
-      // Log that error handling has been enabled
-      console.error('Process-level error handling configured to prevent crashes from timeout errors.');
-
+await initializeGoogleClient();
+server.start({ transportType: "stdio" as const });
+console.error('✓ Google Workspace MCP server ready\n');
 } catch(startError: any) {
-console.error("FATAL: Server failed to start:", startError.message || startError);
+console.error("Server failed to start:", startError.message || startError);
 process.exit(1);
 }
 }

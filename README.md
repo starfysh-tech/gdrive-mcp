@@ -1,12 +1,13 @@
-# Ultimate Google Docs, Sheets & Drive MCP Server
+# Ultimate Google Workspace MCP Server
 
 ![Demo Animation](assets/google.docs.mcp.1.gif)
 
-Connect Claude Desktop (or other MCP clients) to your Google Docs, Google Sheets, and Google Drive!
+Connect Claude Desktop (or other MCP clients) to Google Docs, Sheets, Drive, Slides, Forms, and Apps Script!
 
-> 🔥 **Check out [15 powerful tasks](SAMPLE_TASKS.md) you can accomplish with this enhanced server!**
-> 📁 **NEW:** Complete Google Drive file management capabilities!
-> 📊 **NEW:** Full Google Sheets support for reading, writing, and managing spreadsheets!
+> 🔥 **Check out [15 powerful tasks](SAMPLE_TASKS.md) you can accomplish with this server!**
+> 🎨 **NEW:** Google Slides support for presentations
+> 📋 **NEW:** Google Forms read-only access
+> 📜 **NEW:** Google Apps Script project management and execution
 
 This comprehensive server uses the Model Context Protocol (MCP) and the `fastmcp` library to provide tools for reading, writing, formatting, structuring Google Documents and Spreadsheets, and managing your entire Google Drive. It acts as a powerful bridge, allowing AI assistants like Claude to interact with your documents, spreadsheets, and files programmatically with advanced capabilities.
 
@@ -73,6 +74,25 @@ This comprehensive server uses the Model Context Protocol (MCP) and the `fastmcp
 - **Share Files:** Share files programmatically with `shareFile` - supports users, groups, domains, and public access
 - **Remove Access:** Revoke permissions with `removePermission` - remove specific users or groups from files
 - **Version History:** View file revisions with `listRevisions` - track changes for compliance and auditing
+
+### 🆕 Google Slides Support
+
+- **Read Presentations:** Get presentation metadata with `getPresentation` and list all slides with `listSlides`
+- **Create Presentations:** Create new presentations with `createPresentation`
+- **Manage Slides:** Get slide details with `getSlide`, add slides with `createSlide`, remove with `deleteSlide`
+
+### 🆕 Google Forms Support (Read-Only)
+
+- **Read Forms:** Get form structure and questions with `getForm` and `listFormQuestions`
+- **Read Responses:** Get all form responses with `listFormResponses` or specific ones with `getFormResponse`
+- ⚠️ **Note:** The Forms API only supports reading - form creation/editing must be done via the web interface
+
+### 🆕 Google Apps Script Support
+
+- **Manage Projects:** Get project details with `getScriptProject`, create with `createScriptProject`
+- **Manage Code:** Read scripts with `getScriptContent`, update with `updateScriptContent`
+- **Manage Versions:** List script versions with `listScriptVersions`, list deployments with `listScriptDeployments`
+- **Execute Scripts:** Run functions with `runScript` (requires API executable deployment)
 
 ### Integration
 
@@ -488,6 +508,44 @@ While this MCP server provides comprehensive Google Docs, Sheets, and Drive func
 
 **Limited Support for Converted Documents**: Some Google Docs that were converted from other formats (especially Microsoft Word documents) may not support all Docs API operations. You may encounter errors like "This operation is not supported for this document" when trying to read or modify these files.
 
+### Google Forms API Limitations
+
+**Read-Only Access**: The Google Forms API only supports **reading** form structure and responses. You cannot create, update, or delete forms or questions programmatically. This is a fundamental limitation of the [Google Forms API](https://developers.google.com/workspace/forms/api/reference/rest).
+
+- Forms can only be created and edited via the Google Forms web interface
+- The API can read form structure (questions, settings) and responses
+- See: [Google Forms API Documentation](https://developers.google.com/workspace/forms/api)
+
+### Google Slides API Limitations
+
+**No Batch Updates**: Unlike the Google Docs API, the Slides API does not support batch updates in the same way. Each modification requires individual API calls. See: [Google Slides API Documentation](https://developers.google.com/workspace/slides/api)
+
+### Google Apps Script API Limitations
+
+**No Project Listing**: The Apps Script API does not support listing all script projects. You must know the script ID to interact with a project. Script IDs can be found in the script editor URL: `script.google.com/d/{SCRIPT_ID}/edit`
+
+**Script Execution Requirements**: Running Apps Script functions via the API requires specific setup:
+
+1. The script must be deployed as an **API Executable**
+2. The calling application and script must share a **common Google Cloud project**
+3. The OAuth token must include **all scopes** used by the script
+4. Only scripts with at least one required scope can be executed
+
+See: [Execute Functions with the Apps Script API](https://developers.google.com/apps-script/api/how-tos/execute)
+
+## API Documentation References
+
+| API | Documentation | OAuth Scopes Reference |
+|-----|---------------|----------------------|
+| Google Docs | [developers.google.com/docs/api](https://developers.google.com/docs/api) | `auth/documents` |
+| Google Sheets | [developers.google.com/sheets/api](https://developers.google.com/sheets/api) | `auth/spreadsheets` |
+| Google Drive | [developers.google.com/drive/api](https://developers.google.com/drive/api) | `auth/drive` |
+| Google Slides | [developers.google.com/slides/api](https://developers.google.com/workspace/slides/api) | `auth/presentations` |
+| Google Forms | [developers.google.com/forms/api](https://developers.google.com/workspace/forms/api) | `auth/forms.body.readonly`, `auth/forms.responses.readonly` |
+| Apps Script | [developers.google.com/apps-script/api](https://developers.google.com/apps-script/api) | `auth/script.projects` |
+
+For the complete list of OAuth 2.0 scopes, see: [OAuth 2.0 Scopes for Google APIs](https://developers.google.com/identity/protocols/oauth2/scopes)
+
 ## Troubleshooting
 
 - **Claude shows "Failed" or "Could not attach":**
@@ -500,7 +558,7 @@ While this MCP server provides comprehensive Google Docs, Sheets, and Drive func
   - Ensure you enabled the correct APIs (Docs, Sheets, Drive).
   - Make sure you added your email as a Test User on the OAuth Consent Screen.
   - Verify the `credentials.json` file is correctly placed in the project root.
-  - **If you're upgrading from an older version:** You may need to delete your existing `token.json` file and re-authenticate to grant the new Sheets API scope.
+  - **If you're upgrading from an older version:** You may need to delete your existing `token.json` file and re-authenticate to grant new scopes (Sheets, Slides, Forms, Apps Script).
 - **Tab-related Errors:**
   - If you get "Tab with ID not found", use `listDocumentTabs` to see all available tab IDs
   - Ensure you're using the correct tab ID format (typically a short alphanumeric string)

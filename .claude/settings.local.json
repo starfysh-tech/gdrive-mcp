@@ -27,7 +27,17 @@
       "Bash(gh auth:*)",
       "WebFetch(domain:starfysh.net)",
       "Bash(gh repo list:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Skill(cc-docs)",
+      "Bash(~/.claude-code-docs/claude-docs-helper.sh)",
+      "Bash(~/.claude-code-docs/claude-docs-helper.sh:*)",
+      "Skill(vr)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(npm view:*)",
+      "Bash(npm pkg fix:*)",
+      "Bash(npm version:*)",
+      "Bash(node /Users/randallnoval/Code/gdrive-mcp/dist/server.js:*)",
+      "Bash(npm publish:*)"
     ]
   }
 }

@@ -125,6 +125,28 @@ styleArgs => Object.values(styleArgs).some(v => v !== undefined),
 });
 export type ApplyParagraphStyleToolArgs = z.infer<typeof ApplyParagraphStyleToolParameters>;
 
+// --- Google Slides Parameter Schemas ---
+
+export const PresentationIdParameter = z.object({
+  presentationId: z.string().describe('The ID of the Google Slides presentation (from the URL).'),
+});
+
+export const SlideIdParameter = z.object({
+  slideId: z.string().optional().describe('The object ID of a specific slide/page. Use listSlides to find IDs.'),
+});
+
+// --- Google Forms Parameter Schemas ---
+
+export const FormIdParameter = z.object({
+  formId: z.string().describe('The ID of the Google Form (from the URL).'),
+});
+
+// --- Google Apps Script Parameter Schemas ---
+
+export const ScriptIdParameter = z.object({
+  scriptId: z.string().describe('The Apps Script project ID.'),
+});
+
 // --- Error Class ---
 // Use FastMCP's UserError for client-facing issues
 // Define a custom error for internal issues if needed
