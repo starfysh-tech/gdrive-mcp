@@ -467,17 +467,28 @@
     }
 
     /* Inline icon styles */
-    .inline-icon {
-      vertical-align: text-bottom;
-      margin-right: 4px;
+    .github-icon {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      vertical-align: -3px;
+      margin-right: 6px;
     }
 
-    .inline-icon-white {
-      filter: brightness(0) invert(1);
+    .github-icon-white {
+      fill: var(--text-secondary);
     }
 
-    .inline-icon-green {
-      filter: brightness(0) saturate(100%) invert(74%) sepia(89%) saturate(2299%) hue-rotate(70deg) brightness(119%) contrast(119%);
+    .github-icon-green {
+      fill: var(--green);
+    }
+
+    a:hover .github-icon-white {
+      fill: var(--text-primary);
+    }
+
+    a:hover .github-icon-green {
+      fill: #00ff66;
     }
 
     /* Responsive */
@@ -598,7 +609,7 @@
       <p>Connect Claude to your Google Workspace: Docs, Sheets, Drive, Slides, Forms, and Apps Script.</p>
       <div class="hero-buttons">
         <a href="#quickstart" class="btn btn-primary">Get Started</a>
-        <a href="https://github.com/starfysh-tech/gdrive-mcp#readme" class="btn btn-secondary"><img src="assets/github-icon.png" width="14" class="inline-icon inline-icon-white" alt="GitHub"> Documentation</a>
+        <a href="https://github.com/starfysh-tech/gdrive-mcp#readme" class="btn btn-secondary"><svg class="github-icon github-icon-white" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg> Documentation</a>
       </div>
     </div>
   </section>
@@ -664,7 +675,7 @@
           <button class="copy-button" onclick="copyCode(this, 'git clone https://github.com/starfysh-tech/gdrive-mcp.git\ncd gdrive-mcp && npm install && npm run build')">Copy</button>
         </div>
         <p class="quickstart-link">
-          Requires Google Cloud credentials. <a href="https://github.com/starfysh-tech/gdrive-mcp#setup"><img src="assets/github-icon.png" width="12" class="inline-icon inline-icon-green" alt="GitHub">Full setup guide →</a>
+          Requires Google Cloud credentials. <a href="https://github.com/starfysh-tech/gdrive-mcp#setup"><svg class="github-icon github-icon-green" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Full setup guide →</a>
         </p>
       </div>
     </div>
@@ -674,11 +685,11 @@
   <footer class="footer">
     <div class="container">
       <p>Maintained by <a href="https://starfysh.net">Starfysh</a> — fractional product + tech leadership for technical founders.</p>
-      <p>Originally forked from <a href="https://github.com/a-bonus/google-docs-mcp"><img src="assets/github-icon.png" width="12" class="inline-icon inline-icon-white" alt="GitHub">a-bonus/google-docs-mcp</a></p>
+      <p>Originally forked from <a href="https://github.com/a-bonus/google-docs-mcp"><svg class="github-icon github-icon-white" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>a-bonus/google-docs-mcp</a></p>
       <div class="footer-links">
-        <a href="https://github.com/starfysh-tech/gdrive-mcp"><img src="assets/github-icon.png" width="12" class="inline-icon inline-icon-white" alt="GitHub">GitHub</a>
+        <a href="https://github.com/starfysh-tech/gdrive-mcp"><svg class="github-icon github-icon-white" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a>
         <a href="https://www.npmjs.com/package/@starfysh/gdrive-mcp">npm</a>
-        <a href="https://github.com/starfysh-tech/gdrive-mcp/blob/main/LICENSE"><img src="assets/github-icon.png" width="12" class="inline-icon inline-icon-white" alt="GitHub">MIT License</a>
+        <a href="https://github.com/starfysh-tech/gdrive-mcp/blob/main/LICENSE"><svg class="github-icon github-icon-white" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>MIT License</a>
       </div>
     </div>
   </footer>
