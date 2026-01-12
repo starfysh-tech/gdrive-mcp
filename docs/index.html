@@ -17,7 +17,7 @@
       --card-bg: #141414;
       --text-primary: #e0e0e0;
       --text-secondary: #c0c0c0;
-      --text-dim: #808080;
+      --text-dim: #909090;
       --green: #00ff00;
       --border: #2a2a2a;
     }
@@ -341,7 +341,7 @@
     }
 
     .code-block {
-      background: #000000;
+      background: var(--dark-bg);
       color: var(--text-primary);
       border: 1px solid var(--border);
       border-left: 3px solid var(--orange);
@@ -350,8 +350,46 @@
       font-size: 0.95rem;
       text-align: left;
       overflow-x: auto;
-      margin-bottom: 25px;
       box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+
+    .code-block-wrapper {
+      position: relative;
+      margin-bottom: 15px;
+    }
+
+    .code-block-wrapper:last-of-type {
+      margin-bottom: 25px;
+    }
+
+    .copy-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: var(--card-bg);
+      border: 1px solid var(--orange);
+      color: var(--orange);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .copy-button:hover {
+      background: var(--orange);
+      color: var(--dark-bg);
+      box-shadow: 0 0 15px rgba(255, 122, 0, 0.5);
+    }
+
+    .copy-button.copied {
+      background: var(--green);
+      border-color: var(--green);
+      color: var(--dark-bg);
     }
 
     .code-block .comment {
@@ -420,6 +458,28 @@
       text-shadow: 0 0 10px rgba(255, 122, 0, 0.5);
     }
 
+    /* Focus indicators for keyboard navigation */
+    a:focus,
+    button:focus,
+    .btn:focus {
+      outline: 2px solid var(--orange);
+      outline-offset: 4px;
+    }
+
+    /* Inline icon styles */
+    .inline-icon {
+      vertical-align: text-bottom;
+      margin-right: 4px;
+    }
+
+    .inline-icon-white {
+      filter: brightness(0) invert(1);
+    }
+
+    .inline-icon-green {
+      filter: brightness(0) saturate(100%) invert(74%) sepia(89%) saturate(2299%) hue-rotate(70deg) brightness(119%) contrast(119%);
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .hero {
@@ -477,6 +537,17 @@
       }
     }
 
+    @media (max-width: 400px) {
+      .hero h1 {
+        font-size: 2.5rem;
+        letter-spacing: -1px;
+      }
+
+      .code-block {
+        font-size: 0.875rem;
+      }
+    }
+
     /* Animations */
     @keyframes fadeUp {
       from {
@@ -504,6 +575,18 @@
     .feature-card:nth-child(4) { animation-delay: 0.25s; }
     .feature-card:nth-child(5) { animation-delay: 0.3s; }
     .feature-card:nth-child(6) { animation-delay: 0.35s; }
+
+    /* Reduced motion accessibility */
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -515,7 +598,7 @@
       <p>Connect Claude to your Google Workspace: Docs, Sheets, Drive, Slides, Forms, and Apps Script.</p>
       <div class="hero-buttons">
         <a href="#quickstart" class="btn btn-primary">Get Started</a>
-        <a href="https://github.com/starfysh-tech/gdrive-mcp#readme" class="btn btn-secondary"><img src="assets/github-icon.png" width="14" style="vertical-align: text-bottom; margin-right: 6px; filter: brightness(0) invert(1);" alt="GitHub"> Documentation</a>
+        <a href="https://github.com/starfysh-tech/gdrive-mcp#readme" class="btn btn-secondary"><img src="assets/github-icon.png" width="14" class="inline-icon inline-icon-white" alt="GitHub"> Documentation</a>
       </div>
     </div>
   </section>
@@ -565,15 +648,23 @@
       <div class="quickstart-box">
         <h2>Quick Start</h2>
         <p>Install globally or run directly with npx.</p>
-        <div class="code-block">
-          <span class="comment"># Run directly</span><br>
-          <span class="command">npx</span> @starfysh/gdrive-mcp<br><br>
-          <span class="comment"># Or clone and build</span><br>
-          <span class="command">git clone</span> https://github.com/starfysh-tech/gdrive-mcp.git<br>
-          <span class="command">cd</span> gdrive-mcp && <span class="command">npm install</span> && <span class="command">npm run build</span>
+        <div class="code-block-wrapper">
+          <div class="code-block">
+            <span class="comment"># Run directly</span><br>
+            <span class="command">npx</span> @starfysh/gdrive-mcp
+          </div>
+          <button class="copy-button" onclick="copyCode(this, 'npx @starfysh/gdrive-mcp')">Copy</button>
+        </div>
+        <div class="code-block-wrapper">
+          <div class="code-block">
+            <span class="comment"># Or clone and build</span><br>
+            <span class="command">git clone</span> https://github.com/starfysh-tech/gdrive-mcp.git<br>
+            <span class="command">cd</span> gdrive-mcp && <span class="command">npm install</span> && <span class="command">npm run build</span>
+          </div>
+          <button class="copy-button" onclick="copyCode(this, 'git clone https://github.com/starfysh-tech/gdrive-mcp.git\ncd gdrive-mcp && npm install && npm run build')">Copy</button>
         </div>
         <p class="quickstart-link">
-          Requires Google Cloud credentials. <a href="https://github.com/starfysh-tech/gdrive-mcp#setup"><img src="assets/github-icon.png" width="12" style="vertical-align: text-bottom; margin-right: 4px; filter: brightness(0) saturate(100%) invert(74%) sepia(89%) saturate(2299%) hue-rotate(70deg) brightness(119%) contrast(119%);" alt="GitHub">Full setup guide →</a>
+          Requires Google Cloud credentials. <a href="https://github.com/starfysh-tech/gdrive-mcp#setup"><img src="assets/github-icon.png" width="12" class="inline-icon inline-icon-green" alt="GitHub">Full setup guide →</a>
         </p>
       </div>
     </div>
@@ -583,13 +674,29 @@
   <footer class="footer">
     <div class="container">
       <p>Maintained by <a href="https://starfysh.net">Starfysh</a> — fractional product + tech leadership for technical founders.</p>
-      <p>Originally forked from <a href="https://github.com/a-bonus/google-docs-mcp"><img src="assets/github-icon.png" width="12" style="vertical-align: text-bottom; margin-right: 4px; filter: brightness(0) invert(1);" alt="GitHub">a-bonus/google-docs-mcp</a></p>
+      <p>Originally forked from <a href="https://github.com/a-bonus/google-docs-mcp"><img src="assets/github-icon.png" width="12" class="inline-icon inline-icon-white" alt="GitHub">a-bonus/google-docs-mcp</a></p>
       <div class="footer-links">
-        <a href="https://github.com/starfysh-tech/gdrive-mcp"><img src="assets/github-icon.png" width="12" style="vertical-align: text-bottom; margin-right: 4px; filter: brightness(0) invert(1);" alt="GitHub">GitHub</a>
+        <a href="https://github.com/starfysh-tech/gdrive-mcp"><img src="assets/github-icon.png" width="12" class="inline-icon inline-icon-white" alt="GitHub">GitHub</a>
         <a href="https://www.npmjs.com/package/@starfysh/gdrive-mcp">npm</a>
-        <a href="https://github.com/starfysh-tech/gdrive-mcp/blob/main/LICENSE"><img src="assets/github-icon.png" width="12" style="vertical-align: text-bottom; margin-right: 4px; filter: brightness(0) invert(1);" alt="GitHub">MIT License</a>
+        <a href="https://github.com/starfysh-tech/gdrive-mcp/blob/main/LICENSE"><img src="assets/github-icon.png" width="12" class="inline-icon inline-icon-white" alt="GitHub">MIT License</a>
       </div>
     </div>
   </footer>
+  <script>
+    function copyCode(button, text) {
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = button.textContent;
+        button.textContent = 'Copied!';
+        button.classList.add('copied');
+
+        setTimeout(() => {
+          button.textContent = originalText;
+          button.classList.remove('copied');
+        }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy:', err);
+      });
+    }
+  </script>
 </body>
 </html>
