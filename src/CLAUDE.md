@@ -7,6 +7,7 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #415 | 4:07 PM | 🔄 | Refactored getRecentGoogleDocs to Use Query Builder | ~429 |
-| #363 | 3:48 PM | 🔵 | Partial Pagination Token Implementation Found in server.ts | ~321 |
+| #416 | 4:08 PM | 🔵 | listFolderContents Tool Uses Manual Query Building | ~529 |
+| #414 | 4:07 PM | 🔄 | Query Building and Pagination Messaging Extracted to Shared Helpers | ~724 |
+| #406 | 4:01 PM | 🔵 | MCP Best Practices Evaluation Complete for gdrive-mcp Server | ~989 |
 </claude-mem-context>
