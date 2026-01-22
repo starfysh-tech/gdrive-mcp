@@ -26,6 +26,10 @@ export interface DriveQueryOptions {
 /**
  * Builds a Google Drive API query string from options.
  *
+ * Returns an empty string when no options are provided, which is intentional
+ * for composable query building. The Drive API treats empty queries as valid
+ * and returns all files.
+ *
  * @example
  * buildDriveQuery({
  *   mimeType: 'application/vnd.google-apps.document',
@@ -38,7 +42,7 @@ export function buildDriveQuery(options: DriveQueryOptions): string {
   const clauses: string[] = [];
 
   if (options.mimeType) {
-    clauses.push(`mimeType='${options.mimeType}'`);
+    clauses.push(`mimeType='${escapeQueryValue(options.mimeType)}'`);
   }
 
   if (options.trashed !== undefined) {

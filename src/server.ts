@@ -1492,6 +1492,7 @@ parameters: z.object({
   query: z.string().optional().describe('Search query to filter documents by name or content.'),
   orderBy: z.enum(['name', 'modifiedTime', 'createdTime']).optional().default('modifiedTime').describe('Sort order for results.'),
   modifiedAfter: z.string().optional().describe('Only return documents modified after this date (ISO 8601 format, e.g., "2024-01-01").'),
+  createdAfter: z.string().optional().describe('Only return documents created after this date (ISO 8601 format, e.g., "2024-01-01").'),
 }),
 execute: async (args, { log }) => {
 const drive = await getDriveClient();
@@ -1503,6 +1504,7 @@ try {
     mimeType: MIME_TYPES.DOCUMENT,
     trashed: false,
     modifiedAfter: args.modifiedAfter,
+    createdAfter: args.createdAfter,
   });
   if (args.query) {
     queryString += ` and ${buildSearchClause(args.query, 'both')}`;
@@ -1537,7 +1539,7 @@ try {
   result += formatPaginationMessage(
     !!response.data.nextPageToken,
     files.length,
-    'Use query or modifiedAfter to narrow results.'
+    'Use query, modifiedAfter, or createdAfter to narrow results.'
   );
 
   return result;
@@ -1557,6 +1559,7 @@ parameters: z.object({
   searchIn: z.enum(['name', 'content', 'both']).optional().default('both').describe('Where to search: document names, content, or both.'),
   maxResults: z.number().int().min(1).max(50).optional().default(10).describe('Maximum number of results to return.'),
   modifiedAfter: z.string().optional().describe('Only return documents modified after this date (ISO 8601 format, e.g., "2024-01-01").'),
+  createdAfter: z.string().optional().describe('Only return documents created after this date (ISO 8601 format, e.g., "2024-01-01").'),
 }),
 execute: async (args, { log }) => {
 const drive = await getDriveClient();
@@ -1568,6 +1571,7 @@ try {
     mimeType: MIME_TYPES.DOCUMENT,
     trashed: false,
     modifiedAfter: args.modifiedAfter,
+    createdAfter: args.createdAfter,
   });
   queryString += ` and ${buildSearchClause(args.searchQuery, args.searchIn)}`;
 
@@ -1600,7 +1604,7 @@ try {
   result += formatPaginationMessage(
     !!response.data.nextPageToken,
     files.length,
-    'Add modifiedAfter parameter to narrow results.'
+    'Add modifiedAfter or createdAfter parameter to narrow results.'
   );
 
   return result;
@@ -2567,6 +2571,7 @@ parameters: z.object({
   query: z.string().optional().describe('Search query to filter spreadsheets by name or content.'),
   orderBy: z.enum(['name', 'modifiedTime', 'createdTime']).optional().default('modifiedTime').describe('Sort order for results.'),
   modifiedAfter: z.string().optional().describe('Only return spreadsheets modified after this date (ISO 8601 format, e.g., "2024-01-01").'),
+  createdAfter: z.string().optional().describe('Only return spreadsheets created after this date (ISO 8601 format, e.g., "2024-01-01").'),
 }),
 execute: async (args, { log }) => {
   const drive = await getDriveClient();
@@ -2578,6 +2583,7 @@ execute: async (args, { log }) => {
       mimeType: MIME_TYPES.SPREADSHEET,
       trashed: false,
       modifiedAfter: args.modifiedAfter,
+      createdAfter: args.createdAfter,
     });
     if (args.query) {
       queryString += ` and ${buildSearchClause(args.query, 'both')}`;
@@ -2612,7 +2618,7 @@ execute: async (args, { log }) => {
     result += formatPaginationMessage(
       !!response.data.nextPageToken,
       files.length,
-      'Use query or modifiedAfter to narrow results.'
+      'Use query, modifiedAfter, or createdAfter to narrow results.'
     );
 
     return result;

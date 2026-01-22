@@ -53,6 +53,14 @@ describe('Query Builders', () => {
       assert.ok(query.includes("modifiedTime > '2024-01-01T00:00:00Z'"));
     });
 
+    it('should build query with createdAfter filter', () => {
+      const query = buildDriveQuery({
+        mimeType: MIME_TYPES.DOCUMENT,
+        createdAfter: '2024-01-01T00:00:00Z'
+      });
+      assert.ok(query.includes("createdTime > '2024-01-01T00:00:00Z'"));
+    });
+
     it('should build query with parentFolderId', () => {
       const query = buildDriveQuery({
         parentFolderId: 'folder123'
