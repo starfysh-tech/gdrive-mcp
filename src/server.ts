@@ -1887,7 +1887,7 @@ execute: async (args, { log }) => {
   try {
     const response = await drive.drives.list({
       pageSize: args.maxResults,
-      q: args.query ? `name contains '${args.query}'` : undefined,
+      q: args.query ? buildSearchClause(args.query, 'name') : undefined,
       fields: 'nextPageToken,drives(id,name,createdTime)',
     });
 
