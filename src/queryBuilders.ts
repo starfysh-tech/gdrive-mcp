@@ -6,11 +6,12 @@
  */
 
 /**
- * Escapes single quotes in strings for use in Drive API query syntax.
- * Single quotes in user input could break query parsing or enable injection.
+ * Escapes special characters in strings for use in Drive API query syntax.
+ * Per Google Drive API docs, both backslashes and single quotes must be escaped.
+ * Backslashes are escaped first to avoid double-escaping.
  */
 function escapeQueryValue(value: string): string {
-  return value.replace(/'/g, "\\'");
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
 export interface DriveQueryOptions {

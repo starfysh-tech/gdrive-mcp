@@ -97,6 +97,23 @@ describe('Query Builders', () => {
       assert.ok(query.includes("name contains 'test\\' or \\'1\\'=\\'1'"));
       assert.ok(!query.includes("or '1'='1'")); // Injection pattern should not be present
     });
+
+    it('should escape backslashes in user input', () => {
+      const query = buildDriveQuery({
+        mimeType: MIME_TYPES.DOCUMENT,
+        nameContains: 'path\\to\\file'
+      });
+      assert.ok(query.includes("name contains 'path\\\\to\\\\file'"));
+    });
+
+    it('should escape both backslashes and quotes (backslash first)', () => {
+      // Google's example: quinn's paper\essay → 'quinn\'s paper\\essay'
+      const query = buildDriveQuery({
+        mimeType: MIME_TYPES.DOCUMENT,
+        nameContains: "quinn's paper\\essay"
+      });
+      assert.ok(query.includes("name contains 'quinn\\'s paper\\\\essay'"));
+    });
   });
 
   describe('buildSearchClause', () => {
