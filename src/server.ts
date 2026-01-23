@@ -34,6 +34,7 @@ ScriptIdParameter
 } from './types.js';
 import * as GDocsHelpers from './googleDocsApiHelpers.js';
 import * as SheetsHelpers from './googleSheetsApiHelpers.js';
+import { buildDriveQuery, buildSearchClause, formatPaginationMessage, MIME_TYPES } from './queryBuilders.js';
 
 let authClient: OAuth2Client | null = null;
 let googleDocs: docs_v1.Docs | null = null;
@@ -1490,23 +1491,30 @@ parameters: z.object({
   maxResults: z.number().int().min(1).max(100).optional().default(20).describe('Maximum number of documents to return (1-100).'),
   query: z.string().optional().describe('Search query to filter documents by name or content.'),
   orderBy: z.enum(['name', 'modifiedTime', 'createdTime']).optional().default('modifiedTime').describe('Sort order for results.'),
+  modifiedAfter: z.string().optional().describe('Only return documents modified after this date (ISO 8601 format, e.g., "2024-01-01").'),
+  createdAfter: z.string().optional().describe('Only return documents created after this date (ISO 8601 format, e.g., "2024-01-01").'),
 }),
 execute: async (args, { log }) => {
 const drive = await getDriveClient();
 log.info(`Listing Google Docs. Query: ${args.query || 'none'}, Max: ${args.maxResults}, Order: ${args.orderBy}`);
 
 try {
-  // Build the query string for Google Drive API
-  let queryString = "mimeType='application/vnd.google-apps.document' and trashed=false";
+  // Build the query string using shared helper
+  let queryString = buildDriveQuery({
+    mimeType: MIME_TYPES.DOCUMENT,
+    trashed: false,
+    modifiedAfter: args.modifiedAfter,
+    createdAfter: args.createdAfter,
+  });
   if (args.query) {
-    queryString += ` and (name contains '${args.query}' or fullText contains '${args.query}')`;
+    queryString += ` and ${buildSearchClause(args.query, 'both')}`;
   }
 
   const response = await drive.files.list({
     q: queryString,
     pageSize: args.maxResults,
     orderBy: args.orderBy === 'name' ? 'name' : args.orderBy,
-    fields: 'files(id,name,modifiedTime,createdTime,size,webViewLink,owners(displayName,emailAddress))',
+    fields: 'nextPageToken,files(id,name,modifiedTime,createdTime,size,webViewLink,owners(displayName,emailAddress))',
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
   });
@@ -1528,6 +1536,12 @@ try {
     result += `   Link: ${file.webViewLink}\n\n`;
   });
 
+  result += formatPaginationMessage(
+    !!response.data.nextPageToken,
+    files.length,
+    'Use query, modifiedAfter, or createdAfter to narrow results.'
+  );
+
   return result;
 } catch (error: any) {
   log.error(`Error listing Google Docs: ${error.message || error}`);
@@ -1545,33 +1559,27 @@ parameters: z.object({
   searchIn: z.enum(['name', 'content', 'both']).optional().default('both').describe('Where to search: document names, content, or both.'),
   maxResults: z.number().int().min(1).max(50).optional().default(10).describe('Maximum number of results to return.'),
   modifiedAfter: z.string().optional().describe('Only return documents modified after this date (ISO 8601 format, e.g., "2024-01-01").'),
+  createdAfter: z.string().optional().describe('Only return documents created after this date (ISO 8601 format, e.g., "2024-01-01").'),
 }),
 execute: async (args, { log }) => {
 const drive = await getDriveClient();
 log.info(`Searching Google Docs for: "${args.searchQuery}" in ${args.searchIn}`);
 
 try {
-  let queryString = "mimeType='application/vnd.google-apps.document' and trashed=false";
-
-  // Add search criteria
-  if (args.searchIn === 'name') {
-    queryString += ` and name contains '${args.searchQuery}'`;
-  } else if (args.searchIn === 'content') {
-    queryString += ` and fullText contains '${args.searchQuery}'`;
-  } else {
-    queryString += ` and (name contains '${args.searchQuery}' or fullText contains '${args.searchQuery}')`;
-  }
-
-  // Add date filter if provided
-  if (args.modifiedAfter) {
-    queryString += ` and modifiedTime > '${args.modifiedAfter}'`;
-  }
+  // Build query using shared helpers
+  let queryString = buildDriveQuery({
+    mimeType: MIME_TYPES.DOCUMENT,
+    trashed: false,
+    modifiedAfter: args.modifiedAfter,
+    createdAfter: args.createdAfter,
+  });
+  queryString += ` and ${buildSearchClause(args.searchQuery, args.searchIn)}`;
 
   const response = await drive.files.list({
     q: queryString,
     pageSize: args.maxResults,
     orderBy: 'modifiedTime desc',
-    fields: 'files(id,name,modifiedTime,createdTime,webViewLink,owners(displayName),parents)',
+    fields: 'nextPageToken,files(id,name,modifiedTime,createdTime,webViewLink,owners(displayName),parents)',
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
   });
@@ -1592,6 +1600,12 @@ try {
     result += `   Owner: ${owner}\n`;
     result += `   Link: ${file.webViewLink}\n\n`;
   });
+
+  result += formatPaginationMessage(
+    !!response.data.nextPageToken,
+    files.length,
+    'Add modifiedAfter or createdAfter parameter to narrow results.'
+  );
 
   return result;
 } catch (error: any) {
@@ -1618,13 +1632,17 @@ try {
   cutoffDate.setDate(cutoffDate.getDate() - args.daysBack);
   const cutoffDateStr = cutoffDate.toISOString();
 
-  const queryString = `mimeType='application/vnd.google-apps.document' and trashed=false and modifiedTime > '${cutoffDateStr}'`;
+  const queryString = buildDriveQuery({
+    mimeType: MIME_TYPES.DOCUMENT,
+    trashed: false,
+    modifiedAfter: cutoffDateStr,
+  });
 
   const response = await drive.files.list({
     q: queryString,
     pageSize: args.maxResults,
     orderBy: 'modifiedTime desc',
-    fields: 'files(id,name,modifiedTime,createdTime,webViewLink,owners(displayName),lastModifyingUser(displayName))',
+    fields: 'nextPageToken,files(id,name,modifiedTime,createdTime,webViewLink,owners(displayName),lastModifyingUser(displayName))',
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
   });
@@ -1647,6 +1665,12 @@ try {
     result += `   Owner: ${owner}\n`;
     result += `   Link: ${file.webViewLink}\n\n`;
   });
+
+  result += formatPaginationMessage(
+    !!response.data.nextPageToken,
+    files.length,
+    'Reduce daysBack to narrow results.'
+  );
 
   return result;
 } catch (error: any) {
@@ -1771,7 +1795,11 @@ const drive = await getDriveClient();
 log.info(`Listing contents of folder: ${args.folderId}`);
 
 try {
-  let queryString = `'${args.folderId}' in parents and trashed=false`;
+  // Build query using shared helper for parent folder
+  let queryString = buildDriveQuery({
+    parentFolderId: args.folderId,
+    trashed: false,
+  });
 
   // Filter by type if specified
   if (!args.includeSubfolders && !args.includeFiles) {
@@ -1779,16 +1807,16 @@ try {
   }
 
   if (!args.includeSubfolders) {
-    queryString += ` and mimeType!='application/vnd.google-apps.folder'`;
+    queryString += ` and mimeType!='${MIME_TYPES.FOLDER}'`;
   } else if (!args.includeFiles) {
-    queryString += ` and mimeType='application/vnd.google-apps.folder'`;
+    queryString += ` and mimeType='${MIME_TYPES.FOLDER}'`;
   }
 
   const response = await drive.files.list({
     q: queryString,
     pageSize: args.maxResults,
     orderBy: 'folder,name',
-    fields: 'files(id,name,mimeType,size,modifiedTime,webViewLink,owners(displayName))',
+    fields: 'nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink,owners(displayName))',
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
   });
@@ -1802,8 +1830,8 @@ try {
   let result = `Contents of folder (${items.length} item${items.length !== 1 ? 's' : ''}):\n\n`;
 
   // Separate folders and files
-  const folders = items.filter(item => item.mimeType === 'application/vnd.google-apps.folder');
-  const files = items.filter(item => item.mimeType !== 'application/vnd.google-apps.folder');
+  const folders = items.filter(item => item.mimeType === MIME_TYPES.FOLDER);
+  const files = items.filter(item => item.mimeType !== MIME_TYPES.FOLDER);
 
   // List folders first
   if (folders.length > 0 && args.includeSubfolders) {
@@ -1818,9 +1846,9 @@ try {
   if (files.length > 0 && args.includeFiles) {
     result += `**Files (${files.length}):\n`;
     files.forEach(file => {
-      const fileType = file.mimeType === 'application/vnd.google-apps.document' ? '📄' :
-                      file.mimeType === 'application/vnd.google-apps.spreadsheet' ? '📊' :
-                      file.mimeType === 'application/vnd.google-apps.presentation' ? '📈' : '📎';
+      const fileType = file.mimeType === MIME_TYPES.DOCUMENT ? '📄' :
+                      file.mimeType === MIME_TYPES.SPREADSHEET ? '📊' :
+                      file.mimeType === MIME_TYPES.PRESENTATION ? '📈' : '📎';
       const modifiedDate = file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString() : 'Unknown';
       const owner = file.owners?.[0]?.displayName || 'Unknown';
 
@@ -1830,6 +1858,12 @@ try {
       result += `   Link: ${file.webViewLink}\n\n`;
     });
   }
+
+  result += formatPaginationMessage(
+    !!response.data.nextPageToken,
+    items.length,
+    'Reduce maxResults or filter by type.'
+  );
 
   return result;
 } catch (error: any) {
@@ -1857,8 +1891,8 @@ execute: async (args, { log }) => {
   try {
     const response = await drive.drives.list({
       pageSize: args.maxResults,
-      q: args.query ? `name contains '${args.query}'` : undefined,
-      fields: 'drives(id,name,createdTime)',
+      q: args.query ? buildSearchClause(args.query, 'name') : undefined,
+      fields: 'nextPageToken,drives(id,name,createdTime)',
     });
 
     const drives = response.data.drives || [];
@@ -1878,6 +1912,12 @@ execute: async (args, { log }) => {
       }
       result += '\n';
     });
+
+    result += formatPaginationMessage(
+      !!response.data.nextPageToken,
+      drives.length,
+      'Use query parameter to filter by name.'
+    );
 
     return result;
   } catch (error: any) {
@@ -2530,23 +2570,30 @@ parameters: z.object({
   maxResults: z.number().int().min(1).max(100).optional().default(20).describe('Maximum number of spreadsheets to return (1-100).'),
   query: z.string().optional().describe('Search query to filter spreadsheets by name or content.'),
   orderBy: z.enum(['name', 'modifiedTime', 'createdTime']).optional().default('modifiedTime').describe('Sort order for results.'),
+  modifiedAfter: z.string().optional().describe('Only return spreadsheets modified after this date (ISO 8601 format, e.g., "2024-01-01").'),
+  createdAfter: z.string().optional().describe('Only return spreadsheets created after this date (ISO 8601 format, e.g., "2024-01-01").'),
 }),
 execute: async (args, { log }) => {
   const drive = await getDriveClient();
   log.info(`Listing Google Sheets. Query: ${args.query || 'none'}, Max: ${args.maxResults}, Order: ${args.orderBy}`);
 
   try {
-    // Build the query string for Google Drive API
-    let queryString = "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false";
+    // Build query using shared helpers
+    let queryString = buildDriveQuery({
+      mimeType: MIME_TYPES.SPREADSHEET,
+      trashed: false,
+      modifiedAfter: args.modifiedAfter,
+      createdAfter: args.createdAfter,
+    });
     if (args.query) {
-      queryString += ` and (name contains '${args.query}' or fullText contains '${args.query}')`;
+      queryString += ` and ${buildSearchClause(args.query, 'both')}`;
     }
 
     const response = await drive.files.list({
       q: queryString,
       pageSize: args.maxResults,
       orderBy: args.orderBy === 'name' ? 'name' : args.orderBy,
-      fields: 'files(id,name,modifiedTime,createdTime,size,webViewLink,owners(displayName,emailAddress))',
+      fields: 'nextPageToken,files(id,name,modifiedTime,createdTime,size,webViewLink,owners(displayName,emailAddress))',
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
     });
@@ -2567,6 +2614,12 @@ execute: async (args, { log }) => {
       result += `   Owner: ${owner}\n`;
       result += `   Link: ${file.webViewLink}\n\n`;
     });
+
+    result += formatPaginationMessage(
+      !!response.data.nextPageToken,
+      files.length,
+      'Use query, modifiedAfter, or createdAfter to narrow results.'
+    );
 
     return result;
   } catch (error: any) {
@@ -3252,6 +3305,11 @@ server.addTool({
         }
         result += '\n';
       });
+
+      result += formatPaginationMessage(
+        !!response.data.nextPageToken,
+        deployments.length
+      );
 
       return result;
     } catch (error: any) {
